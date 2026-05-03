@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# 俄罗斯方块
 
-TODO: Document your project here
+集成在Echo的小游戏。单人游戏。未来做朋友间的排名，仅针对已经添加好友的人可见。
