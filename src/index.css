@@ -8,8 +8,14 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Desert palette */
+    --sand: 25 38% 92%;          /* #F2E9E4 */
+    --stone: 11 22% 73%;         /* #C9ADA7 */
+    --dust: 285 8% 57%;          /* #9A8C98 */
+    --deep-sand: 232 19% 35%;    /* #4A4E69 */
+
+    --background: 25 38% 92%;
+    --foreground: 232 19% 22%;
 
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
@@ -102,4 +108,15 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@layer utilities {
+  .desert-grid-cell {
+    border: 1px solid hsl(var(--stone) / 0.35);
+  }
+  @keyframes dustpuff {
+    0% { opacity: 0.8; transform: scale(0.6); }
+    100% { opacity: 0; transform: scale(1.8) translateY(-10px); }
+  }
+  .animate-dustpuff { animation: dustpuff 0.7s ease-out forwards; }
 }
