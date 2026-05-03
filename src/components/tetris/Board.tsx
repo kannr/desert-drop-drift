@@ -20,10 +20,11 @@ export const TetrisBoard = ({ board, piece, clearingRows }: Props) => {
 
   return (
     <div
-      className="relative mx-auto rounded-lg bg-[hsl(var(--sand))] p-1 shadow-inner"
+      className="relative rounded-lg bg-[hsl(var(--sand))] p-1 shadow-inner"
       style={{
+        height: "100%",
         aspectRatio: `${COLS} / ${ROWS}`,
-        width: "min(92vw, 52vh)",
+        maxWidth: "100%",
         border: "1px solid hsl(var(--stone))",
       }}
     >

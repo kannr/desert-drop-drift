@@ -15,14 +15,14 @@ import {
 
 export const Tetris = () => {
   const [board, setBoard] = useState<Board>(() => emptyBoard());
-  const [piece, setPiece] = useState<Piece | null>(() => randomPiece());
+  const [piece, setPiece] = useState<Piece | null>(null);
   const [next, setNext] = useState<Piece>(() => randomPiece());
   const [score, setScore] = useState(0);
   const [lines, setLines] = useState(0);
   const [level, setLevel] = useState(3);
   const [paused, setPaused] = useState(false);
+  const [started, setStarted] = useState(false);
   const [gameOver, setGameOver] = useState(false);
-  const [locked, setLocked] = useState(false);
   const [clearing, setClearing] = useState<number[]>([]);
 
   const boardRef = useRef(board);
@@ -98,15 +98,15 @@ export const Tetris = () => {
 
   // gravity
   useEffect(() => {
-    if (paused || gameOver) return;
+    if (!started || paused || gameOver) return;
     const id = setInterval(() => softDrop(), dropInterval(level));
     return () => clearInterval(id);
-  }, [level, paused, gameOver, softDrop]);
+  }, [level, paused, gameOver, started, softDrop]);
 
   // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (gameOver) return;
+      if (!started || gameOver) return;
       if (e.key === "ArrowLeft") move(-1, 0);
       else if (e.key === "ArrowRight") move(1, 0);
       else if (e.key === "ArrowDown") softDrop();
@@ -116,84 +116,117 @@ export const Tetris = () => {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [move, softDrop, doRotate, hardDrop, gameOver]);
+  }, [move, softDrop, doRotate, hardDrop, gameOver, started]);
 
-  const reset = () => {
+  const start = () => {
     setBoard(emptyBoard());
     setScore(0);
     setLines(0);
     setGameOver(false);
-    setPiece(randomPiece());
+    setPaused(false);
     setNext(randomPiece());
+    setPiece(randomPiece());
+    setStarted(true);
   };
 
   return (
-    <div className="min-h-screen w-full" style={{ background: "hsl(var(--sand))" }}>
-      <div className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6 pb-48">
-        <header className="flex items-end justify-between">
-          <div>
-            <h1 className="text-2xl font-light tracking-[0.2em] text-[hsl(var(--deep-sand))]">沙 漠 · TETRIS</h1>
-            <p className="text-xs tracking-widest text-[hsl(var(--dust))]">DESERT MINIMAL</p>
-          </div>
-          <button
-            onClick={() => setPaused((p) => !p)}
-            className="rounded-md px-3 py-1 text-xs text-[hsl(var(--deep-sand))]"
-            style={{ background: "hsl(var(--stone) / 0.5)" }}
-          >
-            {paused ? "继续" : "暂停"}
-          </button>
-        </header>
+    <div
+      className="relative w-full overflow-hidden"
+      style={{ height: "100dvh", background: "hsl(var(--sand))" }}
+    >
+      {/* Top: board + sidebar */}
+      <div className="absolute inset-x-0 top-0 bottom-40 flex gap-3 px-3 pt-3">
+        {/* Board area */}
+        <div className="flex flex-1 items-center justify-center min-w-0">
+          <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
+        </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        {/* Sidebar */}
+        <aside className="flex w-24 flex-col gap-2">
+          <div>
+            <h1 className="text-sm font-medium tracking-widest text-[hsl(var(--deep-sand))] leading-tight">
+              俄罗斯<br />方块
+            </h1>
+          </div>
           <Stat label="分数" value={score} />
           <Stat label="行数" value={lines} />
           <Stat label="等级" value={level} />
+          <button
+            onClick={() => setPaused((p) => !p)}
+            disabled={!started || gameOver}
+            className="rounded-md py-1 text-xs text-[hsl(var(--deep-sand))] disabled:opacity-40"
+            style={{ background: "hsl(var(--stone) / 0.6)" }}
+          >
+            {paused ? "继续" : "暂停"}
+          </button>
+          <div className="rounded-md p-2" style={{ background: "hsl(var(--stone) / 0.4)" }}>
+            <div className="mb-1 text-[10px] tracking-widest text-[hsl(var(--dust))]">速度</div>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              value={level}
+              onChange={(e) => setLevel(Number(e.target.value))}
+              className="w-full accent-[hsl(var(--deep-sand))]"
+            />
+            <div className="text-right text-[10px] text-[hsl(var(--deep-sand))]">{level}</div>
+          </div>
+        </aside>
+      </div>
+
+      {/* Controller area (bottom 160px) */}
+      {started && !gameOver && (
+        <Controller
+          onLeft={() => move(-1, 0)}
+          onRight={() => move(1, 0)}
+          onRotate={doRotate}
+          onSoftDrop={softDrop}
+          onHardDrop={hardDrop}
+        />
+      )}
+
+      {/* Start overlay */}
+      {!started && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style={{ background: "hsl(var(--sand) / 0.6)" }}>
+          <button
+            onClick={start}
+            className="rounded-full px-10 py-4 text-lg tracking-[0.3em] shadow-lg"
+            style={{ background: "hsl(var(--deep-sand))", color: "hsl(var(--sand))" }}
+          >
+            开始
+          </button>
         </div>
+      )}
 
-        <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
-
-        <div className="flex items-center gap-3 rounded-lg p-3" style={{ background: "hsl(var(--stone) / 0.35)" }}>
-          <span className="text-xs text-[hsl(var(--deep-sand))]">速度</span>
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={level}
-            onChange={(e) => setLevel(Number(e.target.value))}
-            className="flex-1 accent-[hsl(var(--deep-sand))]"
-          />
-          <span className="w-6 text-right text-xs font-medium text-[hsl(var(--deep-sand))]">{level}</span>
-        </div>
-
-        {gameOver && (
-          <div className="rounded-lg p-4 text-center" style={{ background: "hsl(var(--deep-sand))", color: "hsl(var(--sand))" }}>
-            <p className="mb-2 text-lg tracking-widest">游戏结束</p>
-            <button onClick={reset} className="rounded-md px-4 py-1 text-sm" style={{ background: "hsl(var(--stone))", color: "hsl(var(--deep-sand))" }}>
+      {/* Game over modal */}
+      {gameOver && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: "hsl(var(--deep-sand) / 0.4)" }}>
+          <div
+            className="rounded-2xl px-8 py-6 text-center shadow-xl"
+            style={{ background: "hsl(var(--sand))", border: "1px solid hsl(var(--stone))" }}
+          >
+            <p className="mb-1 text-xl tracking-[0.3em] text-[hsl(var(--deep-sand))]">游戏结束</p>
+            <p className="mb-4 text-xs text-[hsl(var(--dust))]">最终得分 {score}</p>
+            <button
+              onClick={start}
+              className="rounded-full px-6 py-2 text-sm tracking-widest"
+              style={{ background: "hsl(var(--deep-sand))", color: "hsl(var(--sand))" }}
+            >
               重新开始
             </button>
           </div>
-        )}
-      </div>
-
-      <Controller
-        onLeft={() => move(-1, 0)}
-        onRight={() => move(1, 0)}
-        onRotate={doRotate}
-        onSoftDrop={softDrop}
-        onHardDrop={hardDrop}
-        locked={locked}
-        onToggleLock={() => setLocked((l) => !l)}
-      />
+        </div>
+      )}
     </div>
   );
 };
 
 const Stat = ({ label, value }: { label: string; value: number }) => (
   <div
-    className="rounded-lg px-3 py-2 text-center"
-    style={{ background: "hsl(var(--stone) / 0.4)", border: "1px solid hsl(var(--stone) / 0.6)" }}
+    className="rounded-md px-2 py-1 text-center"
+    style={{ background: "hsl(var(--stone) / 0.4)", border: "1px solid hsl(var(--stone) / 0.5)" }}
   >
     <div className="text-[10px] tracking-widest text-[hsl(var(--dust))]">{label}</div>
-    <div className="text-xl font-light text-[hsl(var(--deep-sand))]">{value}</div>
+    <div className="text-base font-light text-[hsl(var(--deep-sand))]">{value}</div>
   </div>
 );
