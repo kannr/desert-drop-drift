@@ -7,9 +7,10 @@ interface Props {
   onRotate: () => void;
   onSoftDrop: () => void;
   onHardDrop: () => void;
-  /** Pixel bounds within the parent container that the controller can be dragged between */
-  minX: number;
-  maxX: number;
+  /** Pixel bounds within the parent host that the controller can be dragged between */
+  hostWidth: number;
+  /** Reports the controller's measured height back to the parent so it can size the host */
+  onHeight?: (h: number) => void;
 }
 
 export const Controller = ({
@@ -18,53 +19,70 @@ export const Controller = ({
   onRotate,
   onSoftDrop,
   onHardDrop,
-  minX,
-  maxX,
+  hostWidth,
+  onHeight,
 }: Props) => {
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
-  const dragHandleRef = React.useRef<HTMLDivElement | null>(null);
-  // Start centered between bounds
   const [x, setX] = React.useState<number | null>(null);
+  const [width, setWidth] = React.useState(0);
   const dragState = React.useRef<{ startPointerX: number; startX: number; dragging: boolean } | null>(
     null
   );
 
-  // Initialise / clamp position whenever bounds change
+  // Measure controller width + height
+  React.useLayoutEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      setWidth(w);
+      onHeight?.(h);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onHeight]);
+
+  // Center initially / re-clamp on host or controller resize
   React.useEffect(() => {
+    if (hostWidth <= 0 || width <= 0) return;
     setX((prev) => {
-      const center = (minX + maxX) / 2 - (wrapperRef.current?.offsetWidth ?? 0) / 2;
-      if (prev == null) return center;
-      const w = wrapperRef.current?.offsetWidth ?? 0;
-      return Math.min(Math.max(prev, minX), maxX - w);
+      const max = Math.max(0, hostWidth - width);
+      if (prev == null) return max / 2;
+      return Math.min(Math.max(prev, 0), max);
     });
-  }, [minX, maxX]);
+  }, [hostWidth, width]);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    const w = wrapperRef.current?.offsetWidth ?? 0;
     dragState.current = {
       startPointerX: e.clientX,
-      startX: x ?? (minX + maxX) / 2 - w / 2,
+      startX: x ?? 0,
       dragging: true,
     };
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     e.preventDefault();
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const s = dragState.current;
     if (!s || !s.dragging) return;
-    const w = wrapperRef.current?.offsetWidth ?? 0;
+    const max = Math.max(0, hostWidth - width);
     const next = s.startX + (e.clientX - s.startPointerX);
-    const clamped = Math.min(Math.max(next, minX), maxX - w);
-    setX(clamped);
+    setX(Math.min(Math.max(next, 0), max));
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
     if (dragState.current) dragState.current.dragging = false;
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
+    (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
   };
 
   const left = x ?? 0;
+
+  // Sizes – clamp by viewport
+  const btn = "clamp(44px, 11vw, 64px)";
+  const gap = "clamp(2px, 0.9vw, 5px)";
 
   return (
     <div
@@ -72,61 +90,77 @@ export const Controller = ({
       className="absolute top-0 select-none"
       style={{
         left,
-        width: "min(360px, calc(100% - 8px))",
+        width: "min(60vw, 420px)",
+        minWidth: 240,
         touchAction: "none",
         WebkitUserSelect: "none",
         userSelect: "none",
       }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
+      {/* Drag handle (visual) */}
       <div
-        ref={dragHandleRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
         className="cursor-grab rounded-t-2xl px-3 pb-1 pt-2 text-center active:cursor-grabbing"
         style={{
-          background: "hsl(var(--sand) / 0.9)",
+          background: "hsl(var(--sand) / 0.92)",
           border: "1px solid hsl(var(--stone) / 0.7)",
           borderBottom: "none",
-          touchAction: "none",
         }}
       >
         <div className="mx-auto h-1 w-10 rounded-full" style={{ background: "hsl(var(--dust) / 0.6)" }} />
         <div className="mt-1 text-[11px] tracking-[0.18em] text-foreground/55">← 拖动调整位置 →</div>
       </div>
 
+      {/* Body */}
       <div
-        className="rounded-b-2xl px-3 pb-3 pt-2"
+        className="rounded-b-2xl"
         style={{
-          background: "hsl(var(--sand) / 0.9)",
+          background: "hsl(var(--sand) / 0.92)",
           border: "1px solid hsl(var(--stone) / 0.7)",
           borderTop: "none",
           boxShadow: "0 10px 30px -10px hsl(var(--deep-sand) / 0.25)",
+          padding: gap,
         }}
       >
-        {/* Rotate row */}
-        <div className="mb-2 flex justify-center">
-          <CtrlBtn onPress={onRotate} label="旋转">
-            <RotateCw className="h-6 w-6" />
+        {/* 4-column grid: cols 1-3 = left/down/right; col 4 = hard drop (tall) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: `${btn} ${btn} ${btn} 1fr`,
+            gridTemplateRows: `${btn} ${btn}`,
+            columnGap: gap,
+            rowGap: gap,
+            justifyContent: "center",
+            alignContent: "center",
+          }}
+        >
+          {/* Row 1: empty, rotate (above down), empty, hard-drop spans both rows */}
+          <div />
+          <CtrlBtn onPress={onRotate} label="旋转" size={btn}>
+            <RotateCw style={{ width: "55%", height: "55%" }} />
           </CtrlBtn>
-        </div>
+          <div />
+          <CtrlBtn
+            onPress={onHardDrop}
+            label="瞬降"
+            size={btn}
+            style={{ gridRow: "1 / span 2", height: "auto", width: "100%" }}
+          >
+            <ChevronsDown style={{ width: "55%", height: "30%" }} />
+          </CtrlBtn>
 
-        {/* Action row: left / down / right + hard drop */}
-        <div className="flex items-stretch justify-between gap-2">
-          <div className="flex flex-1 items-center justify-between gap-2">
-            <CtrlBtn onPress={onLeft} label="左移">
-              <ArrowLeft className="h-6 w-6" />
-            </CtrlBtn>
-            <CtrlBtn onPress={onSoftDrop} label="下落">
-              <ArrowDown className="h-6 w-6" />
-            </CtrlBtn>
-            <CtrlBtn onPress={onRight} label="右移">
-              <ArrowRight className="h-6 w-6" />
-            </CtrlBtn>
-          </div>
-          <CtrlBtn onPress={onHardDrop} label="瞬降" tall>
-            <ChevronsDown className="h-7 w-7" />
+          {/* Row 2 */}
+          <CtrlBtn onPress={onLeft} label="左移" size={btn}>
+            <ArrowLeft style={{ width: "55%", height: "55%" }} />
+          </CtrlBtn>
+          <CtrlBtn onPress={onSoftDrop} label="下落" size={btn}>
+            <ArrowDown style={{ width: "55%", height: "55%" }} />
+          </CtrlBtn>
+          <CtrlBtn onPress={onRight} label="右移" size={btn}>
+            <ArrowRight style={{ width: "55%", height: "55%" }} />
           </CtrlBtn>
         </div>
       </div>
@@ -138,12 +172,14 @@ const CtrlBtn = ({
   children,
   onPress,
   label,
-  tall,
+  size,
+  style,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   label: string;
-  tall?: boolean;
+  size: string;
+  style?: React.CSSProperties;
 }) => (
   <button
     type="button"
@@ -152,16 +188,17 @@ const CtrlBtn = ({
       onPress();
     }}
     aria-label={label}
-    className="flex shrink-0 flex-col items-center justify-center gap-1 rounded-2xl text-foreground transition-transform active:scale-95"
+    className="flex flex-col items-center justify-center gap-0.5 rounded-xl text-foreground transition-transform active:scale-95"
     style={{
-      width: 60,
-      height: tall ? 132 : 60,
+      width: size,
+      height: size,
       background: "hsl(var(--stone) / 0.72)",
       border: "1px solid hsl(var(--dust) / 0.42)",
       touchAction: "manipulation",
+      ...style,
     }}
   >
     {children}
-    <span className="text-[12px] leading-none">{label}</span>
+    <span style={{ fontSize: "clamp(10px, 2.4vw, 12px)", lineHeight: 1 }}>{label}</span>
   </button>
 );
