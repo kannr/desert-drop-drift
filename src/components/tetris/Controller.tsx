@@ -137,7 +137,7 @@ export const Controller = ({
             alignContent: "center",
           }}
         >
-          {/* Row 1: empty, rotate (above down), empty, hard-drop spans both rows */}
+          {/* Row 1: empty, rotate (above 下落), empty, empty */}
           <div />
           <CtrlBtn onPress={onRotate} label="旋转" size={btn}>
             <RotateCw style={{ width: "55%", height: "55%" }} />
@@ -147,12 +147,12 @@ export const Controller = ({
             onPress={onHardDrop}
             label="瞬降"
             size={btn}
-            style={{ gridRow: "1 / span 2", height: "auto", width: "100%" }}
+            style={{ gridRow: "1 / span 2", gridColumn: "4", height: "auto", width: "100%" }}
           >
             <ChevronsDown style={{ width: "55%", height: "30%" }} />
           </CtrlBtn>
 
-          {/* Row 2 */}
+          {/* Row 2: 左移 / 下落 / 右移 */}
           <CtrlBtn onPress={onLeft} label="左移" size={btn}>
             <ArrowLeft style={{ width: "55%", height: "55%" }} />
           </CtrlBtn>
