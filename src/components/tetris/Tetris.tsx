@@ -1,4 +1,7 @@
+import tetrisBg from "@/assets/tetris-bg.jpg";
+import { Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Slider } from "@/components/ui/slider";
 import { TetrisBoard } from "./Board";
 import { Controller } from "./Controller";
 import {
@@ -96,14 +99,12 @@ export const Tetris = () => {
     }
   }, []);
 
-  // gravity
   useEffect(() => {
     if (!started || paused || gameOver) return;
     const id = setInterval(() => softDrop(), dropInterval(level));
     return () => clearInterval(id);
   }, [level, paused, gameOver, started, softDrop]);
 
-  // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!started || gameOver) return;
@@ -111,8 +112,10 @@ export const Tetris = () => {
       else if (e.key === "ArrowRight") move(1, 0);
       else if (e.key === "ArrowDown") softDrop();
       else if (e.key === "ArrowUp") doRotate();
-      else if (e.key === " ") { e.preventDefault(); hardDrop(); }
-      else if (e.key === "p" || e.key === "P") setPaused((p) => !p);
+      else if (e.key === " ") {
+        e.preventDefault();
+        hardDrop();
+      } else if (e.key === "p" || e.key === "P") setPaused((p) => !p);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -130,103 +133,136 @@ export const Tetris = () => {
   };
 
   return (
-    <div
-      className="relative w-full overflow-hidden"
-      style={{ height: "100dvh", background: "hsl(var(--sand))" }}
+    <main
+      className="relative mx-auto w-full overflow-hidden"
+      style={{
+        height: "100dvh",
+        maxWidth: "min(100vw, calc(100dvh * 390 / 844))",
+        background: "hsl(var(--background))",
+      }}
     >
-      {/* Top: board + sidebar */}
-      <div className="absolute inset-x-0 top-0 bottom-40 flex gap-3 px-3 pt-3">
-        {/* Board area */}
-        <div className="flex flex-1 items-center justify-center min-w-0">
-          <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
-        </div>
+      <div className="absolute inset-0 flex flex-col px-3 pb-3 pt-3">
+        <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(94px,24vw,116px)] gap-2.5">
+          <div className="flex min-w-0 items-center justify-center overflow-hidden rounded-lg">
+            <div className="h-full max-h-full w-full max-w-full">
+              <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
+            </div>
+          </div>
 
-        {/* Sidebar */}
-        <aside className="flex w-24 flex-col gap-2">
-          <div>
-            <h1 className="text-sm font-medium tracking-widest text-[hsl(var(--deep-sand))] leading-tight">
-              俄罗斯<br />方块
-            </h1>
-          </div>
-          <Stat label="分数" value={score} />
-          <Stat label="行数" value={lines} />
-          <Stat label="等级" value={level} />
-          <button
-            onClick={() => setPaused((p) => !p)}
-            disabled={!started || gameOver}
-            className="rounded-md py-1 text-xs text-[hsl(var(--deep-sand))] disabled:opacity-40"
-            style={{ background: "hsl(var(--stone) / 0.6)" }}
-          >
-            {paused ? "继续" : "暂停"}
-          </button>
-          <div className="rounded-md p-2" style={{ background: "hsl(var(--stone) / 0.4)" }}>
-            <div className="mb-1 text-[10px] tracking-widest text-[hsl(var(--dust))]">速度</div>
-            <input
-              type="range"
-              min={1}
-              max={10}
-              value={level}
-              onChange={(e) => setLevel(Number(e.target.value))}
-              className="w-full accent-[hsl(var(--deep-sand))]"
+          <aside className="flex min-h-0 flex-col">
+            <div className="pr-1">
+              <h1
+                className="whitespace-nowrap font-medium leading-none text-foreground"
+                style={{ fontSize: "clamp(20px, 4.8vw, 30px)" }}
+              >
+                俄罗斯方块
+              </h1>
+            </div>
+
+            <div className="mt-2 flex flex-col gap-2">
+              <Stat label="分数" value={score} />
+              <Stat label="行数" value={lines} />
+              <Stat label="等级" value={level} />
+            </div>
+
+            <div className="mt-auto flex flex-col gap-2 pb-1">
+              <button
+                type="button"
+                onClick={() => setPaused((p) => !p)}
+                disabled={!started || gameOver}
+                className="flex h-12 items-center justify-center gap-2 rounded-lg text-sm text-foreground disabled:opacity-40"
+                style={{ background: "hsl(var(--stone) / 0.58)", border: "1px solid hsl(var(--stone) / 0.75)" }}
+              >
+                {paused ? <Play size={16} /> : <Pause size={16} />}
+                <span>{paused ? "继续" : "暂停"}</span>
+              </button>
+
+              <div
+                className="rounded-lg px-3 py-3"
+                style={{ background: "hsl(var(--stone) / 0.36)", border: "1px solid hsl(var(--stone) / 0.55)" }}
+              >
+                <div className="mb-3 text-[clamp(11px,2.6vw,13px)] text-foreground/65">速度</div>
+                <Slider
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={[level]}
+                  onValueChange={(value) => setLevel(value[0] ?? 1)}
+                />
+                <div className="mt-2 text-right text-[clamp(12px,2.8vw,14px)] text-foreground/80">{level}</div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <div className="relative mt-2 h-[clamp(176px,27vh,230px)] shrink-0">
+          {started && !gameOver && (
+            <Controller
+              onLeft={() => move(-1, 0)}
+              onRight={() => move(1, 0)}
+              onRotate={doRotate}
+              onSoftDrop={softDrop}
+              onHardDrop={hardDrop}
             />
-            <div className="text-right text-[10px] text-[hsl(var(--deep-sand))]">{level}</div>
-          </div>
-        </aside>
+          )}
+        </div>
       </div>
 
-      {/* Controller area (bottom 160px) */}
-      {started && !gameOver && (
-        <Controller
-          onLeft={() => move(-1, 0)}
-          onRight={() => move(1, 0)}
-          onRotate={doRotate}
-          onSoftDrop={softDrop}
-          onHardDrop={hardDrop}
-        />
-      )}
-
-      {/* Start overlay */}
       {!started && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm" style={{ background: "hsl(var(--sand) / 0.6)" }}>
-          <button
-            onClick={start}
-            className="rounded-full px-10 py-4 text-lg tracking-[0.3em] shadow-lg"
-            style={{ background: "hsl(var(--deep-sand))", color: "hsl(var(--sand))" }}
-          >
-            开始
-          </button>
+        <div className="absolute inset-0 z-50 flex items-center justify-center">
+          <img
+            src={tetrisBg}
+            alt="经典俄罗斯方块背景"
+            width={768}
+            height={1280}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, hsl(var(--deep-sand) / 0.18), hsl(var(--deep-sand) / 0.45))" }} />
+          <div className="relative flex flex-col items-center gap-6 px-6 text-center">
+            <h2 className="text-[clamp(26px,8vw,40px)] font-medium tracking-[0.08em] text-primary-foreground">
+              俄罗斯方块
+            </h2>
+            <button
+              type="button"
+              onClick={start}
+              className="rounded-full px-10 py-4 text-lg tracking-[0.3em] shadow-lg"
+              style={{ background: "hsl(var(--background) / 0.92)", color: "hsl(var(--deep-sand))" }}
+            >
+              开始
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Game over modal */}
       {gameOver && (
         <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: "hsl(var(--deep-sand) / 0.4)" }}>
           <div
             className="rounded-2xl px-8 py-6 text-center shadow-xl"
-            style={{ background: "hsl(var(--sand))", border: "1px solid hsl(var(--stone))" }}
+            style={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--stone))" }}
           >
-            <p className="mb-1 text-xl tracking-[0.3em] text-[hsl(var(--deep-sand))]">游戏结束</p>
-            <p className="mb-4 text-xs text-[hsl(var(--dust))]">最终得分 {score}</p>
+            <p className="mb-1 text-xl tracking-[0.3em] text-foreground">游戏结束</p>
+            <p className="mb-4 text-xs text-foreground/60">最终得分 {score}</p>
             <button
+              type="button"
               onClick={start}
               className="rounded-full px-6 py-2 text-sm tracking-widest"
-              style={{ background: "hsl(var(--deep-sand))", color: "hsl(var(--sand))" }}
+              style={{ background: "hsl(var(--deep-sand))", color: "hsl(var(--background))" }}
             >
               重新开始
             </button>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
 };
 
 const Stat = ({ label, value }: { label: string; value: number }) => (
   <div
-    className="rounded-md px-2 py-1 text-center"
-    style={{ background: "hsl(var(--stone) / 0.4)", border: "1px solid hsl(var(--stone) / 0.5)" }}
+    className="rounded-lg px-2 py-2 text-center"
+    style={{ background: "hsl(var(--stone) / 0.4)", border: "1px solid hsl(var(--stone) / 0.55)" }}
   >
-    <div className="text-[10px] tracking-widest text-[hsl(var(--dust))]">{label}</div>
-    <div className="text-base font-light text-[hsl(var(--deep-sand))]">{value}</div>
+    <div className="text-[clamp(11px,2.7vw,13px)] text-foreground/55">{label}</div>
+    <div className="text-[clamp(22px,5vw,34px)] font-light leading-tight text-foreground">{value}</div>
   </div>
 );
