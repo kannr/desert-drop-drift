@@ -98,12 +98,12 @@ export const Controller = ({
   /** 当前左边距（像素） */
   const left = x ?? 0;
 
-  /** 主按钮边长：略增大以适配 0.7 屏宽与无顶栏提示后的纵向空间 */
-  const btn = "clamp(50px, 13vw, 76px)";
-  /** 栅格间距：与垂直间隔一致且略放大 */
-  const gap = "clamp(3px, 1.05vw, 7px)";
-  /** 瞬降列最小宽度：可作微调兜底 */
-  const hardCol = "minmax(clamp(52px, 14vw, 82px), 1fr)";
+  /** 主按钮边长：棋盘区略缩后操作区可更大，旋转/三向键更协调 */
+  const btn = "clamp(56px, 15vw, 86px)";
+  /** 栅格间距 */
+  const gap = "clamp(4px, 1.12vw, 8px)";
+  /** 瞬降列：固定较窄轨道，不抢 1fr，整体更偏左四键 */
+  const hardCol = "clamp(44px, 9.5vw, 56px)";
 
   return (
     <div
@@ -128,17 +128,17 @@ export const Controller = ({
     >
       {/* 相对定位容器：背景提示置于底层，按钮网格置于上层 */}
       <div className="relative">
-        {/* 居中背景提示，半透明字样隐约透出 */}
+        {/* 居中背景提示：保留左右箭头并加入「左右」二字，字体略大以便透过半透明按钮阅读 */}
         <div
-          className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-3 text-center leading-snug"
+          className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-2 text-center leading-snug"
           style={{
-            fontSize: "clamp(11px, 3vw, 14px)",
-            letterSpacing: "0.14em",
-            color: "hsl(var(--foreground) / 0.26)",
+            fontSize: "clamp(14px, 4.2vw, 19px)",
+            letterSpacing: "0.1em",
+            color: "hsl(var(--foreground) / 0.28)",
           }}
           aria-hidden
         >
-          左右拖动调整位置
+          ← 左右拖动调整位置 →
         </div>
 
         {/* 按钮区：左区旋转+三键，右区瞬降占两行高度 */}

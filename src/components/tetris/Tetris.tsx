@@ -19,11 +19,6 @@ import {
   rotate,
 } from "./engine";
 
-/** 侧栏与棋盘之间的水平间距，亦等于棋盘距左屏边、侧栏距右屏边（三者相等） */
-const GAME_AREA_GUTTER = "clamp(3px, 1.2vw, 7px)";
-/** 信息栏列宽：可通过 Stat「分数」等样式微调整体占位 */
-const SIDEBAR_COL = "clamp(76px, 20.5vw, 108px)";
-
 /** 导出游戏主界面组件 */
 export const Tetris = () => {
   /** 固定棋盘格子状态 */
@@ -164,10 +159,40 @@ export const Tetris = () => {
 
   /** 底部操作区宿主 DOM，用于测量可用宽度以限制拖动 */
   const controllerHostRef = useRef<HTMLDivElement | null>(null);
+  /** 玩法区栅格容器，用于根据实际宽度计算三等分水平留白 */
+  const playSectionRef = useRef<HTMLElement | null>(null);
   /** 宿主像素宽度 */
   const [hostWidth, setHostWidth] = useState(0);
   /** 控制器实测高度，避免裁切或留白 */
   const [controllerHeight, setControllerHeight] = useState(220);
+  /** 左、中、右三处相等的水平留白（像素），由容器宽度动态算出 */
+  const [gameGutterPx, setGameGutterPx] = useState(6);
+  /** 右侧信息栏列宽（像素），随屏幕变宽略增，释放棋盘略缩后的横向空间 */
+  const [sidebarColPx, setSidebarColPx] = useState(96);
+
+  /** 根据玩法区实测宽度更新 gutter 与侧栏宽度，保证三边留白数值一致 */
+  useLayoutEffect(() => {
+    const el = playSectionRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = el.clientWidth; // 已扣除父级水平 padding 的内容宽
+      if (w <= 0) return;
+      // 留白约为内容宽的 2.1%～2.4%，并限制在 5～12px，避免右侧视觉上过窄
+      const g = Math.min(12, Math.max(5, Math.round(w * 0.023)));
+      setGameGutterPx(g);
+      // 侧栏略加宽，便于分数区等展示；随宽度单调限定上下界
+      const sb = Math.min(124, Math.max(86, Math.round(w * 0.252)));
+      setSidebarColPx(sb);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("orientationchange", update);
+    };
+  }, []); // 挂载后即测量，与是否已开始游戏无关
 
   /** 监听宿主宽度变化（含横竖屏） */
   useLayoutEffect(() => {
@@ -200,28 +225,32 @@ export const Tetris = () => {
         style={{
           paddingTop: "max(6px, env(safe-area-inset-top))",
           paddingBottom: "max(6px, env(safe-area-inset-bottom))",
-          paddingLeft: "max(2px, env(safe-area-inset-left))",
-          paddingRight: "max(2px, env(safe-area-inset-right))",
+          // 左右取较大安全区，避免一侧凹槽导致「侧栏—屏边」视觉上偏窄
+          paddingLeft: "max(2px, env(safe-area-inset-left), env(safe-area-inset-right))",
+          paddingRight: "max(2px, env(safe-area-inset-left), env(safe-area-inset-right))",
           gap: 6,
         }}
       >
-        {/* 五列栅格：左 gutter | 棋盘 | 中 gutter | 侧栏 | 右 gutter（三处 gutter 同宽） */}
+        {/* 五列栅格：左 gutter | 棋盘 | 中 gutter | 侧栏 | 右 gutter（像素三等分） */}
         <section
+          ref={playSectionRef}
           className="grid min-h-0 flex-1"
           style={{
-            gridTemplateColumns: `${GAME_AREA_GUTTER} minmax(0, 1fr) ${GAME_AREA_GUTTER} ${SIDEBAR_COL} ${GAME_AREA_GUTTER}`,
+            gridTemplateColumns: `${gameGutterPx}px minmax(0, 1fr) ${gameGutterPx}px ${sidebarColPx}px ${gameGutterPx}px`,
           }}
         >
-          {/* 左侧与屏幕边缘的等宽留白 */}
+          {/* 左侧与屏幕边缘之间的留白列（像素与另两处相等） */}
           <div aria-hidden className="min-h-0" />
-          {/* 中间游戏视觉区 */}
+          {/* 中间游戏视觉区：高度略缩，宽度随纵横比略减，腾出横向给侧栏与底部大按钮 */}
           <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden">
-            <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
+            <div className="flex h-[96%] max-h-full min-h-0 w-full items-center justify-center">
+              <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
+            </div>
           </div>
           {/* 棋盘与信息栏之间的等宽留白 */}
           <div aria-hidden className="min-h-0" />
-          {/* 右侧信息栏：六块纵向排列 */}
-          <aside className="flex min-h-0 flex-col" style={{ gap: 6 }}>
+          {/* 右侧信息栏：六块纵向排列；限制最小宽 0 防止栅格溢出 */}
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden" style={{ gap: 6 }}>
             {/* 标题单行不换行 */}
             <h1
               className="whitespace-nowrap text-center font-medium leading-none text-foreground"
