@@ -1,6 +1,6 @@
 import tetrisBg from "@/assets/tetris-bg.jpg";
 import { Pause, Play } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Slider } from "@/components/ui/slider";
 import { TetrisBoard } from "./Board";
 import { Controller } from "./Controller";
@@ -132,101 +132,139 @@ export const Tetris = () => {
     setStarted(true);
   };
 
+  // ===== Layout: measure play area to constrain controller drag =====
+  const playRowRef = useRef<HTMLDivElement | null>(null);
+  const [bounds, setBounds] = useState<{ minX: number; maxX: number }>({ minX: 0, maxX: 0 });
+  const controllerHostRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const host = controllerHostRef.current;
+      const row = playRowRef.current;
+      if (!host || !row) return;
+      const hostRect = host.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      setBounds({
+        minX: rowRect.left - hostRect.left,
+        maxX: rowRect.right - hostRect.left,
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, [started]);
+
   return (
     <main
       className="relative mx-auto w-full overflow-hidden"
       style={{
         height: "100dvh",
-        maxWidth: "min(100vw, calc(100dvh * 390 / 844))",
+        maxWidth: "min(100vw, calc(100dvh * 430 / 844))",
         background: "hsl(var(--background))",
       }}
     >
-      <div className="absolute inset-0 flex flex-col px-3 pb-3 pt-3">
-        <section className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(94px,24vw,116px)] gap-2.5">
-          <div className="flex min-w-0 items-center justify-center overflow-hidden rounded-lg">
-            <div className="h-full max-h-full w-full max-w-full">
+      <div className="absolute inset-0 flex flex-col px-1.5 pb-2 pt-2">
+        <section
+          ref={playRowRef}
+          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_92px] gap-2"
+        >
+          {/* Game board */}
+          <div className="flex min-w-0 items-stretch justify-center overflow-hidden">
+            <div className="flex h-full w-full items-center justify-center">
               <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
             </div>
           </div>
 
-          <aside className="flex min-h-0 flex-col">
-            <div className="pr-1">
-              <h1
-                className="whitespace-nowrap font-medium leading-none text-foreground"
-                style={{ fontSize: "clamp(20px, 4.8vw, 30px)" }}
-              >
-                俄罗斯方块
-              </h1>
-            </div>
+          {/* Sidebar — same height as play area */}
+          <aside className="flex min-h-0 flex-col gap-2">
+            <h1
+              className="whitespace-nowrap text-center font-medium leading-none text-foreground"
+              style={{ fontSize: 15, letterSpacing: "0.02em" }}
+            >
+              俄罗斯方块
+            </h1>
 
-            <div className="mt-2 flex flex-col gap-2">
-              <Stat label="分数" value={score} />
-              <Stat label="行数" value={lines} />
-              <Stat label="等级" value={level} />
-            </div>
+            <Stat label="分数" value={score} />
+            <Stat label="行数" value={lines} />
+            <Stat label="等级" value={level} />
 
-            <div className="mt-auto flex flex-col gap-2 pb-1">
-              <button
-                type="button"
-                onClick={() => setPaused((p) => !p)}
-                disabled={!started || gameOver}
-                className="flex h-12 items-center justify-center gap-2 rounded-lg text-sm text-foreground disabled:opacity-40"
-                style={{ background: "hsl(var(--stone) / 0.58)", border: "1px solid hsl(var(--stone) / 0.75)" }}
-              >
-                {paused ? <Play size={16} /> : <Pause size={16} />}
-                <span>{paused ? "继续" : "暂停"}</span>
-              </button>
-
-              <div
-                className="rounded-lg px-3 py-3"
-                style={{ background: "hsl(var(--stone) / 0.36)", border: "1px solid hsl(var(--stone) / 0.55)" }}
-              >
-                <div className="mb-3 text-[clamp(11px,2.6vw,13px)] text-foreground/65">速度</div>
+            {/* Vertical speed slider — fills remaining vertical space */}
+            <div
+              className="flex min-h-0 flex-1 flex-col items-center gap-2 rounded-lg px-2 py-2"
+              style={{ background: "hsl(var(--stone) / 0.36)", border: "1px solid hsl(var(--stone) / 0.55)" }}
+            >
+              <div className="text-[11px] text-foreground/65">速度</div>
+              <div className="flex min-h-0 flex-1 items-stretch">
                 <Slider
+                  orientation="vertical"
                   min={1}
                   max={10}
                   step={1}
                   value={[level]}
                   onValueChange={(value) => setLevel(value[0] ?? 1)}
+                  className="h-full"
                 />
-                <div className="mt-2 text-right text-[clamp(12px,2.8vw,14px)] text-foreground/80">{level}</div>
               </div>
+              <div className="text-[12px] text-foreground/80">{level}</div>
             </div>
+
+            {/* Pause at bottom for thumb reach */}
+            <button
+              type="button"
+              onClick={() => setPaused((p) => !p)}
+              disabled={!started || gameOver}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg text-[13px] text-foreground disabled:opacity-40"
+              style={{ background: "hsl(var(--stone) / 0.6)", border: "1px solid hsl(var(--stone) / 0.75)" }}
+            >
+              {paused ? <Play size={14} /> : <Pause size={14} />}
+              <span>{paused ? "继续" : "暂停"}</span>
+            </button>
           </aside>
         </section>
 
-        <div className="relative mt-2 h-[clamp(176px,27vh,230px)] shrink-0">
-          {started && !gameOver && (
+        {/* Controller host — width matches the play row exactly */}
+        <div ref={controllerHostRef} className="relative mt-2 h-[228px] shrink-0">
+          {started && !gameOver && bounds.maxX > bounds.minX && (
             <Controller
               onLeft={() => move(-1, 0)}
               onRight={() => move(1, 0)}
               onRotate={doRotate}
               onSoftDrop={softDrop}
               onHardDrop={hardDrop}
+              minX={bounds.minX}
+              maxX={bounds.maxX}
             />
           )}
         </div>
       </div>
 
+      {/* Start screen — full bleed background */}
       {!started && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center">
+        <div className="absolute inset-0 z-50">
           <img
             src={tetrisBg}
-            alt="经典俄罗斯方块背景"
-            width={768}
-            height={1280}
+            alt="俄罗斯方块"
+            width={1024}
+            height={1536}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, hsl(var(--deep-sand) / 0.18), hsl(var(--deep-sand) / 0.45))" }} />
-          <div className="relative flex flex-col items-center gap-6 px-6 text-center">
-            <h2 className="text-[clamp(26px,8vw,40px)] font-medium tracking-[0.08em] text-primary-foreground">
-              俄罗斯方块
-            </h2>
+          <div className="absolute inset-x-0 bottom-0 flex justify-center pb-[14vh]">
             <button
               type="button"
               onClick={start}
-              className="rounded-full px-10 py-4 text-lg tracking-[0.3em] shadow-lg"
-              style={{ background: "hsl(var(--background) / 0.92)", color: "hsl(var(--deep-sand))" }}
+              className="rounded-full px-12 py-4 text-lg font-medium tracking-[0.5em] shadow-2xl transition-transform active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, hsl(var(--sand) / 0.95), hsl(var(--stone) / 0.95))",
+                color: "hsl(var(--deep-sand))",
+                border: "1px solid hsl(var(--sand))",
+                boxShadow: "0 18px 40px -12px hsl(var(--deep-sand) / 0.5)",
+                letterSpacing: "0.6em",
+                paddingLeft: "3.2rem",
+              }}
             >
               开始
             </button>
@@ -235,7 +273,10 @@ export const Tetris = () => {
       )}
 
       {gameOver && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: "hsl(var(--deep-sand) / 0.4)" }}>
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center"
+          style={{ background: "hsl(var(--deep-sand) / 0.4)" }}
+        >
           <div
             className="rounded-2xl px-8 py-6 text-center shadow-xl"
             style={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--stone))" }}
@@ -259,10 +300,10 @@ export const Tetris = () => {
 
 const Stat = ({ label, value }: { label: string; value: number }) => (
   <div
-    className="rounded-lg px-2 py-2 text-center"
+    className="rounded-lg px-1 py-1 text-center"
     style={{ background: "hsl(var(--stone) / 0.4)", border: "1px solid hsl(var(--stone) / 0.55)" }}
   >
-    <div className="text-[clamp(11px,2.7vw,13px)] text-foreground/55">{label}</div>
-    <div className="text-[clamp(22px,5vw,34px)] font-light leading-tight text-foreground">{value}</div>
+    <div className="text-[10px] text-foreground/55">{label}</div>
+    <div className="text-[20px] font-light leading-tight text-foreground">{value}</div>
   </div>
 );
