@@ -1,3 +1,6 @@
+/**
+ * 俄罗斯方块游戏根组件：启动页、主玩法区、侧边信息与底部操作区。
+ */
 import tetrisBg from "@/assets/tetris-bg.jpg";
 import { Pause, Play } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -16,111 +19,138 @@ import {
   rotate,
 } from "./engine";
 
+/** 侧栏与棋盘之间的水平间距，亦等于棋盘距左屏边、侧栏距右屏边（三者相等） */
+const GAME_AREA_GUTTER = "clamp(3px, 1.2vw, 7px)";
+/** 信息栏列宽：可通过 Stat「分数」等样式微调整体占位 */
+const SIDEBAR_COL = "clamp(76px, 20.5vw, 108px)";
+
+/** 导出游戏主界面组件 */
 export const Tetris = () => {
+  /** 固定棋盘格子状态 */
   const [board, setBoard] = useState<Board>(() => emptyBoard());
+  /** 当前下落的方块 */
   const [piece, setPiece] = useState<Piece | null>(null);
+  /** 下一个将出场的方块 */
   const [next, setNext] = useState<Piece>(() => randomPiece());
+  /** 累计得分 */
   const [score, setScore] = useState(0);
+  /** 消除的总行数 */
   const [lines, setLines] = useState(0);
+  /** 下落速度档位（1–10） */
   const [level, setLevel] = useState(3);
+  /** 是否暂停 */
   const [paused, setPaused] = useState(false);
+  /** 是否已开始过游戏 */
   const [started, setStarted] = useState(false);
+  /** 是否游戏结束 */
   const [gameOver, setGameOver] = useState(false);
+  /** 正在播放消除动画的行索引 */
   const [clearing, setClearing] = useState<number[]>([]);
 
+  /** 即时读取最新棋盘，避免闭包陈旧 */
   const boardRef = useRef(board);
+  /** 即时读取当前方块 */
   const pieceRef = useRef(piece);
   boardRef.current = board;
   pieceRef.current = piece;
 
+  /** 从预览队列取出下一个方块并尝试生成 */
   const spawn = useCallback(() => {
-    const p = next;
-    setNext(randomPiece());
+    const p = next; // 使用队列头的方块作为当前块
+    setNext(randomPiece()); // 立即补充下一个随机块
     if (collides(boardRef.current, p)) {
-      setGameOver(true);
+      setGameOver(true); // 出生即碰撞则判负
       setPiece(null);
     } else {
-      setPiece(p);
+      setPiece(p); // 正常入场
     }
   }, [next]);
 
+  /** 当前方块落地：合并棋盘、消行、计分并准备下一块 */
   const lockPiece = useCallback(() => {
     const p = pieceRef.current;
     if (!p) return;
-    const merged = merge(boardRef.current, p);
-    const { board: nb, cleared } = clearLines(merged);
+    const merged = merge(boardRef.current, p); // 方块写入棋盘
+    const { board: nb, cleared } = clearLines(merged); // 尝试消行
     if (cleared.length) {
-      setClearing(cleared);
-      setTimeout(() => setClearing([]), 600);
-      const pts = [0, 100, 300, 500, 800][cleared.length] || 0;
+      setClearing(cleared); // 标记动画行
+      setTimeout(() => setClearing([]), 600); // 动画结束后清除标记
+      const pts = [0, 100, 300, 500, 800][cleared.length] || 0; // 经典计分表
       setScore((s) => s + pts * level);
       setLines((l) => l + cleared.length);
     }
     setBoard(nb);
     setPiece(null);
-    setTimeout(() => spawn(), 30);
+    setTimeout(() => spawn(), 30); // 短暂间隔再生成下一块
   }, [level, spawn]);
 
+  /** 尝试平移当前方块，成功返回 true */
   const move = useCallback((dx: number, dy: number) => {
     const p = pieceRef.current;
     if (!p) return false;
     if (!collides(boardRef.current, p, p.x + dx, p.y + dy)) {
-      setPiece({ ...p, x: p.x + dx, y: p.y + dy });
+      setPiece({ ...p, x: p.x + dx, y: p.y + dy }); // 无碰撞则更新坐标
       return true;
     }
-    return false;
+    return false; // 受阻
   }, []);
 
+  /** 软降：能下移则下移，否则锁定 */
   const softDrop = useCallback(() => {
     const p = pieceRef.current;
     if (!p) return;
     if (!move(0, 1)) lockPiece();
   }, [move, lockPiece]);
 
+  /** 瞬降到最低并加分后锁定 */
   const hardDrop = useCallback(() => {
     const p = pieceRef.current;
     if (!p) return;
     let ny = p.y;
-    while (!collides(boardRef.current, p, p.x, ny + 1)) ny++;
+    while (!collides(boardRef.current, p, p.x, ny + 1)) ny++; // 逐格下探到底
     setPiece({ ...p, y: ny });
-    setScore((s) => s + (ny - p.y) * 2);
+    setScore((s) => s + (ny - p.y) * 2); // 硬降奖励分
     setTimeout(() => lockPiece(), 0);
   }, [lockPiece]);
 
+  /** 顺时针旋转并做墙踢尝试 */
   const doRotate = useCallback(() => {
     const p = pieceRef.current;
     if (!p) return;
-    const rs = rotate(p.shape);
+    const rs = rotate(p.shape); // 旋转后的形状矩阵
     for (const off of [0, -1, 1, -2, 2]) {
       if (!collides(boardRef.current, p, p.x + off, p.y, rs)) {
-        setPiece({ ...p, x: p.x + off, shape: rs });
+        setPiece({ ...p, x: p.x + off, shape: rs }); // 墙踢偏移成功
         return;
       }
     }
   }, []);
 
+  /** 自动下落定时器 */
   useEffect(() => {
     if (!started || paused || gameOver) return;
     const id = setInterval(() => softDrop(), dropInterval(level));
     return () => clearInterval(id);
   }, [level, paused, gameOver, started, softDrop]);
 
+  /** 桌面端键盘备用操作 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!started || gameOver) return;
-      if (e.key === "ArrowLeft") move(-1, 0);
-      else if (e.key === "ArrowRight") move(1, 0);
-      else if (e.key === "ArrowDown") softDrop();
-      else if (e.key === "ArrowUp") doRotate();
+      if (e.key === "ArrowLeft") move(-1, 0); // 左
+      else if (e.key === "ArrowRight") move(1, 0); // 右
+      else if (e.key === "ArrowDown") softDrop(); // 软降
+      else if (e.key === "ArrowUp") doRotate(); // 转
       else if (e.key === " ") {
-        e.preventDefault();
-        hardDrop();
-      } else if (e.key === "p" || e.key === "P") setPaused((p) => !p);
+        e.preventDefault(); // 防止页面滚动
+        hardDrop(); // 空格硬降
+      } else if (e.key === "p" || e.key === "P") setPaused((p) => !p); // 暂停切换
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [move, softDrop, doRotate, hardDrop, gameOver, started]);
 
+  /** 重置状态并开始新一局 */
   const start = () => {
     setBoard(emptyBoard());
     setScore(0);
@@ -132,11 +162,14 @@ export const Tetris = () => {
     setStarted(true);
   };
 
-  // ===== Measure controller host width to constrain drag =====
+  /** 底部操作区宿主 DOM，用于测量可用宽度以限制拖动 */
   const controllerHostRef = useRef<HTMLDivElement | null>(null);
+  /** 宿主像素宽度 */
   const [hostWidth, setHostWidth] = useState(0);
+  /** 控制器实测高度，避免裁切或留白 */
   const [controllerHeight, setControllerHeight] = useState(220);
 
+  /** 监听宿主宽度变化（含横竖屏） */
   useLayoutEffect(() => {
     const el = controllerHostRef.current;
     if (!el) return;
@@ -151,6 +184,7 @@ export const Tetris = () => {
     };
   }, [started]);
 
+  /** 根节点：整屏视口，沙漠背景色 */
   return (
     <main
       className="relative overflow-hidden"
@@ -160,6 +194,7 @@ export const Tetris = () => {
         background: "hsl(var(--background))",
       }}
     >
+      {/* 内层：安全区内 flex 列，上玩法下操作 */}
       <div
         className="absolute inset-0 flex flex-col"
         style={{
@@ -170,20 +205,24 @@ export const Tetris = () => {
           gap: 6,
         }}
       >
+        {/* 五列栅格：左 gutter | 棋盘 | 中 gutter | 侧栏 | 右 gutter（三处 gutter 同宽） */}
         <section
           className="grid min-h-0 flex-1"
           style={{
-            gridTemplateColumns: "minmax(0, 1fr) clamp(78px, 22vw, 110px)",
-            gap: 4,
+            gridTemplateColumns: `${GAME_AREA_GUTTER} minmax(0, 1fr) ${GAME_AREA_GUTTER} ${SIDEBAR_COL} ${GAME_AREA_GUTTER}`,
           }}
         >
-          {/* Game board */}
-          <div className="flex min-w-0 items-center justify-center overflow-hidden">
+          {/* 左侧与屏幕边缘的等宽留白 */}
+          <div aria-hidden className="min-h-0" />
+          {/* 中间游戏视觉区 */}
+          <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden">
             <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
           </div>
-
-          {/* Sidebar */}
+          {/* 棋盘与信息栏之间的等宽留白 */}
+          <div aria-hidden className="min-h-0" />
+          {/* 右侧信息栏：六块纵向排列 */}
           <aside className="flex min-h-0 flex-col" style={{ gap: 6 }}>
+            {/* 标题单行不换行 */}
             <h1
               className="whitespace-nowrap text-center font-medium leading-none text-foreground"
               style={{ fontSize: "clamp(12px, 3.4vw, 16px)", letterSpacing: "0.02em" }}
@@ -195,7 +234,7 @@ export const Tetris = () => {
             <Stat label="行数" value={lines} />
             <Stat label="等级" value={level} />
 
-            {/* Vertical speed slider — fills remaining vertical space */}
+            {/* 垂直速度滑轨：占据侧栏剩余高度 */}
             <div
               className="flex min-h-0 flex-1 flex-col items-center rounded-lg"
               style={{
@@ -217,10 +256,11 @@ export const Tetris = () => {
                   className="h-full"
                 />
               </div>
+              {/* 当前档位数字 */}
               <div style={{ fontSize: "clamp(10px, 2.6vw, 12px)" }} className="text-foreground/80">{level}</div>
             </div>
 
-            {/* Pause at bottom for thumb reach */}
+            {/* 暂停键靠下便于拇指点击 */}
             <button
               type="button"
               onClick={() => setPaused((p) => !p)}
@@ -237,9 +277,11 @@ export const Tetris = () => {
               <span>{paused ? "继续" : "暂停"}</span>
             </button>
           </aside>
+          {/* 右侧与屏幕边缘的等宽留白 */}
+          <div aria-hidden className="min-h-0" />
         </section>
 
-        {/* Controller host — full width, height = controller's actual height */}
+        {/* 操作区宿主：全宽，高度随控制器实测 */}
         <div
           ref={controllerHostRef}
           className="relative shrink-0"
@@ -259,14 +301,16 @@ export const Tetris = () => {
         </div>
       </div>
 
-      {/* Start screen — full bleed background, escapes any parent constraints */}
+      {/* 启动页：全屏背景与开始按钮 */}
       {!started && (
         <div className="fixed inset-0 z-50" style={{ width: "100vw", height: "100dvh" }}>
+          {/* 启动页全屏背景图 */}
           <img
             src={tetrisBg}
             alt="俄罗斯方块"
             className="absolute inset-0 h-full w-full object-cover"
           />
+          {/* 底部约五分之一区域放置开始按钮 */}
           <div className="absolute inset-x-0 bottom-0 flex justify-center" style={{ paddingBottom: "14vh" }}>
             <button
               type="button"
@@ -287,6 +331,7 @@ export const Tetris = () => {
         </div>
       )}
 
+      {/* 结束遮罩与重新开始 */}
       {gameOver && (
         <div
           className="absolute inset-0 z-50 flex items-center justify-center"
@@ -313,16 +358,19 @@ export const Tetris = () => {
   );
 };
 
+/** 侧边单行统计卡片：分数项略增水平内边距以便微调侧栏视觉宽度 */
 const Stat = ({ label, value }: { label: string; value: number }) => (
   <div
     className="rounded-lg text-center"
     style={{
       background: "hsl(var(--stone) / 0.4)",
       border: "1px solid hsl(var(--stone) / 0.55)",
-      padding: "3px 4px",
+      padding: label === "分数" ? "3px 5px" : "3px 4px",
     }}
   >
+    {/* 指标名称 */}
     <div style={{ fontSize: "clamp(9px, 2.2vw, 11px)" }} className="text-foreground/55">{label}</div>
+    {/* 指标数值 */}
     <div style={{ fontSize: "clamp(15px, 4.4vw, 20px)" }} className="font-light leading-tight text-foreground">{value}</div>
   </div>
 );

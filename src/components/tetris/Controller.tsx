@@ -1,18 +1,28 @@
+/**
+ * 游戏页面底部操作区：可左右拖动的半透明按钮容器，背景显示提示文案。
+ */
 import React from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ChevronsDown, RotateCw } from "lucide-react";
 
+/** 组件属性：五个操作回调、宿主宽度、高度上报 */
 interface Props {
+  /** 左移一格 */
   onLeft: () => void;
+  /** 右移一格 */
   onRight: () => void;
+  /** 顺时针旋转 */
   onRotate: () => void;
+  /** 软降一格 */
   onSoftDrop: () => void;
+  /** 硬降到触底 */
   onHardDrop: () => void;
-  /** Pixel bounds within the parent host that the controller can be dragged between */
+  /** 父容器像素宽度，用于限制拖动范围 */
   hostWidth: number;
-  /** Reports the controller's measured height back to the parent so it can size the host */
+  /** 将实测高度回传给父组件以预留布局空间 */
   onHeight?: (h: number) => void;
 }
 
+/** 可拖动的俄罗斯方块操作控制器 */
 export const Controller = ({
   onLeft,
   onRight,
@@ -22,14 +32,18 @@ export const Controller = ({
   hostWidth,
   onHeight,
 }: Props) => {
+  /** 外层包裹元素引用，用于测量宽高 */
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
+  /** 水平偏移（像素），null 表示尚未初始化居中 */
   const [x, setX] = React.useState<number | null>(null);
+  /** 控制器自身像素宽度 */
   const [width, setWidth] = React.useState(0);
+  /** 拖动过程指针状态 */
   const dragState = React.useRef<{ startPointerX: number; startX: number; dragging: boolean } | null>(
     null
   );
 
-  // Measure controller width + height
+  /** 监听尺寸变化并上报高度 */
   React.useLayoutEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
@@ -45,7 +59,7 @@ export const Controller = ({
     return () => ro.disconnect();
   }, [onHeight]);
 
-  // Center initially / re-clamp on host or controller resize
+  /** 宿主或控制器宽度变化时重新居中或钳制位置 */
   React.useEffect(() => {
     if (hostWidth <= 0 || width <= 0) return;
     setX((prev) => {
@@ -55,6 +69,7 @@ export const Controller = ({
     });
   }, [hostWidth, width]);
 
+  /** 开始拖动：记录起点并捕获指针 */
   const onPointerDown = (e: React.PointerEvent) => {
     dragState.current = {
       startPointerX: e.clientX,
@@ -65,6 +80,7 @@ export const Controller = ({
     e.preventDefault();
   };
 
+  /** 拖动中：按位移更新水平位置并钳制在合法区间 */
   const onPointerMove = (e: React.PointerEvent) => {
     const s = dragState.current;
     if (!s || !s.dragging) return;
@@ -73,63 +89,64 @@ export const Controller = ({
     setX(Math.min(Math.max(next, 0), max));
   };
 
+  /** 结束拖动：释放指针捕获 */
   const onPointerUp = (e: React.PointerEvent) => {
     if (dragState.current) dragState.current.dragging = false;
     (e.currentTarget as Element).releasePointerCapture?.(e.pointerId);
   };
 
+  /** 当前左边距（像素） */
   const left = x ?? 0;
 
-  // Sizes – clamp by viewport
-  const btn = "clamp(44px, 11vw, 64px)";
-  const gap = "clamp(2px, 0.9vw, 5px)";
+  /** 主按钮边长：略增大以适配 0.7 屏宽与无顶栏提示后的纵向空间 */
+  const btn = "clamp(50px, 13vw, 76px)";
+  /** 栅格间距：与垂直间隔一致且略放大 */
+  const gap = "clamp(3px, 1.05vw, 7px)";
+  /** 瞬降列最小宽度：可作微调兜底 */
+  const hardCol = "minmax(clamp(52px, 14vw, 82px), 1fr)";
 
   return (
     <div
       ref={wrapperRef}
-      className="absolute top-0 select-none"
+      className="absolute top-0 select-none rounded-2xl"
       style={{
         left,
-        width: "min(60vw, 420px)",
-        minWidth: 240,
+        width: "min(70vw, 460px)",
+        minWidth: 252,
         touchAction: "none",
         WebkitUserSelect: "none",
         userSelect: "none",
+        background: "hsl(var(--sand) / 0.88)",
+        border: "1px solid hsl(var(--stone) / 0.7)",
+        boxShadow: "0 10px 30px -10px hsl(var(--deep-sand) / 0.25)",
+        padding: gap,
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {/* Drag handle (visual) */}
-      <div
-        className="cursor-grab rounded-t-2xl px-3 pb-1 pt-2 text-center active:cursor-grabbing"
-        style={{
-          background: "hsl(var(--sand) / 0.92)",
-          border: "1px solid hsl(var(--stone) / 0.7)",
-          borderBottom: "none",
-        }}
-      >
-        <div className="mx-auto h-1 w-10 rounded-full" style={{ background: "hsl(var(--dust) / 0.6)" }} />
-        <div className="mt-1 text-[11px] tracking-[0.18em] text-foreground/55">← 拖动调整位置 →</div>
-      </div>
-
-      {/* Body */}
-      <div
-        className="rounded-b-2xl"
-        style={{
-          background: "hsl(var(--sand) / 0.92)",
-          border: "1px solid hsl(var(--stone) / 0.7)",
-          borderTop: "none",
-          boxShadow: "0 10px 30px -10px hsl(var(--deep-sand) / 0.25)",
-          padding: gap,
-        }}
-      >
-        {/* 4-column grid: cols 1-3 = left/down/right; col 4 = hard drop (tall) */}
+      {/* 相对定位容器：背景提示置于底层，按钮网格置于上层 */}
+      <div className="relative">
+        {/* 居中背景提示，半透明字样隐约透出 */}
         <div
+          className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-3 text-center leading-snug"
+          style={{
+            fontSize: "clamp(11px, 3vw, 14px)",
+            letterSpacing: "0.14em",
+            color: "hsl(var(--foreground) / 0.26)",
+          }}
+          aria-hidden
+        >
+          左右拖动调整位置
+        </div>
+
+        {/* 按钮区：左区旋转+三键，右区瞬降占两行高度 */}
+        <div
+          className="relative z-[1]"
           style={{
             display: "grid",
-            gridTemplateColumns: `${btn} ${btn} ${btn} 1fr`,
+            gridTemplateColumns: `${btn} ${btn} ${btn} ${hardCol}`,
             gridTemplateRows: `${btn} ${btn}`,
             columnGap: gap,
             rowGap: gap,
@@ -137,10 +154,10 @@ export const Controller = ({
             alignContent: "center",
           }}
         >
-          {/* Row 1: empty, rotate (above 下落), empty, empty */}
+          {/* 第一行左空、旋转、右空；第四列为瞬降跨两行 */}
           <div />
           <CtrlBtn onPress={onRotate} label="旋转" size={btn}>
-            <RotateCw style={{ width: "55%", height: "55%" }} />
+            <RotateCw style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
           <div />
           <CtrlBtn
@@ -149,18 +166,18 @@ export const Controller = ({
             size={btn}
             style={{ gridRow: "1 / span 2", gridColumn: "4", height: "auto", width: "100%" }}
           >
-            <ChevronsDown style={{ width: "55%", height: "30%" }} />
+            <ChevronsDown style={{ width: "56%", height: "32%" }} />
           </CtrlBtn>
 
-          {/* Row 2: 左移 / 下落 / 右移 */}
+          {/* 第二行：左移、下落、右移 */}
           <CtrlBtn onPress={onLeft} label="左移" size={btn}>
-            <ArrowLeft style={{ width: "55%", height: "55%" }} />
+            <ArrowLeft style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
           <CtrlBtn onPress={onSoftDrop} label="下落" size={btn}>
-            <ArrowDown style={{ width: "55%", height: "55%" }} />
+            <ArrowDown style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
           <CtrlBtn onPress={onRight} label="右移" size={btn}>
-            <ArrowRight style={{ width: "55%", height: "55%" }} />
+            <ArrowRight style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
         </div>
       </div>
@@ -168,6 +185,7 @@ export const Controller = ({
   );
 };
 
+/** 半透明圆形角按钮，阻止事件冒泡以免触发拖动 */
 const CtrlBtn = ({
   children,
   onPress,
@@ -192,13 +210,13 @@ const CtrlBtn = ({
     style={{
       width: size,
       height: size,
-      background: "hsl(var(--stone) / 0.72)",
-      border: "1px solid hsl(var(--dust) / 0.42)",
+      background: "hsl(var(--stone) / 0.38)",
+      border: "1px solid hsl(var(--dust) / 0.35)",
       touchAction: "manipulation",
       ...style,
     }}
   >
     {children}
-    <span style={{ fontSize: "clamp(10px, 2.4vw, 12px)", lineHeight: 1 }}>{label}</span>
+    <span style={{ fontSize: "clamp(10px, 2.6vw, 13px)", lineHeight: 1, opacity: 0.92 }}>{label}</span>
   </button>
 );
