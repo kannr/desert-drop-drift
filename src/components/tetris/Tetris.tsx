@@ -132,58 +132,61 @@ export const Tetris = () => {
     setStarted(true);
   };
 
-  // ===== Layout: measure play area to constrain controller drag =====
-  const playRowRef = useRef<HTMLDivElement | null>(null);
-  const [bounds, setBounds] = useState<{ minX: number; maxX: number }>({ minX: 0, maxX: 0 });
+  // ===== Measure controller host width to constrain drag =====
   const controllerHostRef = useRef<HTMLDivElement | null>(null);
+  const [hostWidth, setHostWidth] = useState(0);
+  const [controllerHeight, setControllerHeight] = useState(220);
 
   useLayoutEffect(() => {
-    const update = () => {
-      const host = controllerHostRef.current;
-      const row = playRowRef.current;
-      if (!host || !row) return;
-      const hostRect = host.getBoundingClientRect();
-      const rowRect = row.getBoundingClientRect();
-      setBounds({
-        minX: rowRect.left - hostRect.left,
-        maxX: rowRect.right - hostRect.left,
-      });
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("orientationchange", update);
+    const el = controllerHostRef.current;
+    if (!el) return;
+    const measure = () => setHostWidth(el.offsetWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    window.addEventListener("orientationchange", measure);
     return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("orientationchange", update);
+      ro.disconnect();
+      window.removeEventListener("orientationchange", measure);
     };
   }, [started]);
 
   return (
     <main
-      className="relative mx-auto w-full overflow-hidden"
+      className="relative overflow-hidden"
       style={{
+        width: "100vw",
         height: "100dvh",
-        maxWidth: "min(100vw, calc(100dvh * 430 / 844))",
         background: "hsl(var(--background))",
       }}
     >
-      <div className="absolute inset-0 flex flex-col px-1.5 pb-2 pt-2">
+      <div
+        className="absolute inset-0 flex flex-col"
+        style={{
+          paddingTop: "max(6px, env(safe-area-inset-top))",
+          paddingBottom: "max(6px, env(safe-area-inset-bottom))",
+          paddingLeft: "max(2px, env(safe-area-inset-left))",
+          paddingRight: "max(2px, env(safe-area-inset-right))",
+          gap: 6,
+        }}
+      >
         <section
-          ref={playRowRef}
-          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_92px] gap-2"
+          className="grid min-h-0 flex-1"
+          style={{
+            gridTemplateColumns: "minmax(0, 1fr) clamp(78px, 22vw, 110px)",
+            gap: 4,
+          }}
         >
           {/* Game board */}
-          <div className="flex min-w-0 items-stretch justify-center overflow-hidden">
-            <div className="flex h-full w-full items-center justify-center">
-              <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
-            </div>
+          <div className="flex min-w-0 items-center justify-center overflow-hidden">
+            <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
           </div>
 
-          {/* Sidebar — same height as play area */}
-          <aside className="flex min-h-0 flex-col gap-2">
+          {/* Sidebar */}
+          <aside className="flex min-h-0 flex-col" style={{ gap: 6 }}>
             <h1
               className="whitespace-nowrap text-center font-medium leading-none text-foreground"
-              style={{ fontSize: 15, letterSpacing: "0.02em" }}
+              style={{ fontSize: "clamp(12px, 3.4vw, 16px)", letterSpacing: "0.02em" }}
             >
               俄罗斯方块
             </h1>
@@ -194,10 +197,15 @@ export const Tetris = () => {
 
             {/* Vertical speed slider — fills remaining vertical space */}
             <div
-              className="flex min-h-0 flex-1 flex-col items-center gap-2 rounded-lg px-2 py-2"
-              style={{ background: "hsl(var(--stone) / 0.36)", border: "1px solid hsl(var(--stone) / 0.55)" }}
+              className="flex min-h-0 flex-1 flex-col items-center rounded-lg"
+              style={{
+                background: "hsl(var(--stone) / 0.36)",
+                border: "1px solid hsl(var(--stone) / 0.55)",
+                padding: "6px 4px",
+                gap: 4,
+              }}
             >
-              <div className="text-[11px] text-foreground/65">速度</div>
+              <div style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }} className="text-foreground/65">速度</div>
               <div className="flex min-h-0 flex-1 items-stretch">
                 <Slider
                   orientation="vertical"
@@ -209,7 +217,7 @@ export const Tetris = () => {
                   className="h-full"
                 />
               </div>
-              <div className="text-[12px] text-foreground/80">{level}</div>
+              <div style={{ fontSize: "clamp(10px, 2.6vw, 12px)" }} className="text-foreground/80">{level}</div>
             </div>
 
             {/* Pause at bottom for thumb reach */}
@@ -217,53 +225,60 @@ export const Tetris = () => {
               type="button"
               onClick={() => setPaused((p) => !p)}
               disabled={!started || gameOver}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-lg text-[13px] text-foreground disabled:opacity-40"
-              style={{ background: "hsl(var(--stone) / 0.6)", border: "1px solid hsl(var(--stone) / 0.75)" }}
+              className="flex items-center justify-center gap-1 rounded-lg text-foreground disabled:opacity-40"
+              style={{
+                background: "hsl(var(--stone) / 0.6)",
+                border: "1px solid hsl(var(--stone) / 0.75)",
+                height: "clamp(36px, 8vw, 44px)",
+                fontSize: "clamp(11px, 2.8vw, 13px)",
+              }}
             >
-              {paused ? <Play size={14} /> : <Pause size={14} />}
+              {paused ? <Play size={13} /> : <Pause size={13} />}
               <span>{paused ? "继续" : "暂停"}</span>
             </button>
           </aside>
         </section>
 
-        {/* Controller host — width matches the play row exactly */}
-        <div ref={controllerHostRef} className="relative mt-2 h-[228px] shrink-0">
-          {started && !gameOver && bounds.maxX > bounds.minX && (
+        {/* Controller host — full width, height = controller's actual height */}
+        <div
+          ref={controllerHostRef}
+          className="relative shrink-0"
+          style={{ height: controllerHeight }}
+        >
+          {started && !gameOver && hostWidth > 0 && (
             <Controller
               onLeft={() => move(-1, 0)}
               onRight={() => move(1, 0)}
               onRotate={doRotate}
               onSoftDrop={softDrop}
               onHardDrop={hardDrop}
-              minX={bounds.minX}
-              maxX={bounds.maxX}
+              hostWidth={hostWidth}
+              onHeight={(h) => setControllerHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev))}
             />
           )}
         </div>
       </div>
 
-      {/* Start screen — full bleed background */}
+      {/* Start screen — full bleed background, escapes any parent constraints */}
       {!started && (
-        <div className="absolute inset-0 z-50">
+        <div className="fixed inset-0 z-50" style={{ width: "100vw", height: "100dvh" }}>
           <img
             src={tetrisBg}
             alt="俄罗斯方块"
-            width={1024}
-            height={1536}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div className="absolute inset-x-0 bottom-0 flex justify-center pb-[14vh]">
+          <div className="absolute inset-x-0 bottom-0 flex justify-center" style={{ paddingBottom: "14vh" }}>
             <button
               type="button"
               onClick={start}
-              className="rounded-full px-12 py-4 text-lg font-medium tracking-[0.5em] shadow-2xl transition-transform active:scale-95"
+              className="rounded-full text-lg font-medium shadow-2xl transition-transform active:scale-95"
               style={{
                 background: "linear-gradient(135deg, hsl(var(--sand) / 0.95), hsl(var(--stone) / 0.95))",
                 color: "hsl(var(--deep-sand))",
                 border: "1px solid hsl(var(--sand))",
                 boxShadow: "0 18px 40px -12px hsl(var(--deep-sand) / 0.5)",
                 letterSpacing: "0.6em",
-                paddingLeft: "3.2rem",
+                padding: "14px 48px 14px 60px",
               }}
             >
               开始
@@ -300,10 +315,14 @@ export const Tetris = () => {
 
 const Stat = ({ label, value }: { label: string; value: number }) => (
   <div
-    className="rounded-lg px-1 py-1 text-center"
-    style={{ background: "hsl(var(--stone) / 0.4)", border: "1px solid hsl(var(--stone) / 0.55)" }}
+    className="rounded-lg text-center"
+    style={{
+      background: "hsl(var(--stone) / 0.4)",
+      border: "1px solid hsl(var(--stone) / 0.55)",
+      padding: "3px 4px",
+    }}
   >
-    <div className="text-[10px] text-foreground/55">{label}</div>
-    <div className="text-[20px] font-light leading-tight text-foreground">{value}</div>
+    <div style={{ fontSize: "clamp(9px, 2.2vw, 11px)" }} className="text-foreground/55">{label}</div>
+    <div style={{ fontSize: "clamp(15px, 4.4vw, 20px)" }} className="font-light leading-tight text-foreground">{value}</div>
   </div>
 );
