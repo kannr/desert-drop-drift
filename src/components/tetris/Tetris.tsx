@@ -318,26 +318,36 @@ export const Tetris = () => {
           <div aria-hidden className="min-h-0" />
           {/* 信息展示区：与棋盘列等高 */}
           <aside className="flex min-h-0 min-w-0 flex-col self-stretch overflow-hidden" style={{ gap: 6 }}>
-            {/* 标题单行不换行 */}
+            {/* 标题：极粗字重、深色主色 */}
             <h1
-              className="whitespace-nowrap text-center font-medium leading-none text-foreground"
-              style={{ fontSize: "clamp(12px, 3.4vw, 16px)", letterSpacing: "0.02em" }}
+              className="whitespace-nowrap text-center leading-none"
+              style={{
+                fontSize: "clamp(13px, 3.6vw, 17px)",
+                letterSpacing: "0.06em",
+                fontWeight: 900,
+                fontFamily: 'ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+                color: "hsl(var(--deep-sand))",
+              }}
             >
               俄罗斯方块
             </h1>
+
+            {/* 下一个方块预览（增高由速度区 flex 收缩补偿） */}
+            <NextPiecePreview piece={next} />
 
             <Stat label="分数" value={score} />
             <Stat label="行数" value={lines} />
             <Stat label="等级" value={level} />
 
-            {/* 垂直速度滑轨：占据侧栏剩余高度 */}
+            {/* 垂直速度滑轨：预览占用纵向空间后由 flex-1 自动变矮 */}
             <div
               className="flex min-h-0 flex-1 flex-col items-center rounded-lg"
               style={{
                 background: "hsl(var(--stone) / 0.36)",
                 border: "1px solid hsl(var(--stone) / 0.55)",
-                padding: "6px 4px",
-                gap: 4,
+                padding: "4px 4px",
+                gap: 3,
+                flexBasis: 0,
               }}
             >
               <div style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }} className="text-foreground/65">速度</div>
@@ -451,6 +461,48 @@ export const Tetris = () => {
         </div>
       )}
     </main>
+  );
+};
+
+/** 侧栏「下一个」迷你棋盘：按方块矩阵着色，高度固定以免挤压其它区块过多 */
+const NextPiecePreview = ({ piece }: { piece: Piece }) => {
+  const rows = piece.shape.length;
+  const cols = piece.shape[0]?.length ?? 0;
+  return (
+    <div
+      className="flex shrink-0 flex-col items-center justify-center rounded-lg py-1"
+      style={{
+        background: "hsl(var(--stone) / 0.32)",
+        border: "1px solid hsl(var(--stone) / 0.5)",
+      }}
+    >
+      <span style={{ fontSize: "clamp(8px, 2.1vw, 10px)" }} className="mb-0.5 text-foreground/55">
+        下一个
+      </span>
+      <div
+        className="mx-auto grid w-full max-w-[88px]"
+        style={{
+          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+          aspectRatio: `${cols} / ${rows}`,
+          gap: 2,
+          maxHeight: "clamp(30px, 8vw, 42px)",
+        }}
+      >
+        {piece.shape.map((row, ri) =>
+          row.map((cell, ci) => (
+            <div
+              key={`${ri}-${ci}`}
+              className="min-h-0 min-w-0"
+              style={{
+                borderRadius: 2,
+                background: cell ? `hsl(${piece.color})` : "transparent",
+              }}
+            />
+          ))
+        )}
+      </div>
+    </div>
   );
 };
 

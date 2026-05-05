@@ -102,7 +102,7 @@ export const Controller = ({
   const rowH = "clamp(54px, 14.5vw, 84px)";
   /** 栅格间距 */
   const gap = "clamp(4px, 1.12vw, 8px)";
-  /** 左移/下落/右移三等分列；瞬降列极大 flex 权重吃掉剩余宽度 */
+  /** 前三列与行高同为 clamp，呈正方形；第四列瞬降横向占满剩余 */
 
   return (
     <div
@@ -133,18 +133,18 @@ export const Controller = ({
           style={{
             fontSize: "clamp(14px, 4.2vw, 19px)",
             letterSpacing: "0.1em",
-            color: "hsl(var(--foreground) / 0.28)",
+            color: "hsl(var(--foreground) / 0.13)",
           }}
           aria-hidden
         >
           ← 左右拖动调整位置 →
         </div>
 
-        {/* 满宽容器网格：底部左移/下落/右移与瞬降四列总宽度撑满内边距内侧 */}
+        {/* 旋转与左移/下落/右移：列宽=行高呈正方形；第四列瞬降占剩余宽度 */}
         <div
           className="relative z-[1] grid min-h-0 w-full min-w-0"
           style={{
-            gridTemplateColumns: "minmax(48px, 1fr) minmax(48px, 1fr) minmax(48px, 1fr) minmax(52px, 100fr)",
+            gridTemplateColumns: `${rowH} ${rowH} ${rowH} minmax(48px, 1fr)`,
             gridTemplateRows: `${rowH} ${rowH}`,
             columnGap: gap,
             rowGap: gap,
