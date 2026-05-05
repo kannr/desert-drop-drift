@@ -4,7 +4,7 @@
 import React from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ChevronsDown, RotateCw } from "lucide-react";
 
-/** 组件属性：五个操作回调、宿主宽度、高度上报 */
+/** 组件属性：五个操作回调、宿主宽度、高度上报、桌面键盘提示 */
 interface Props {
   /** 左移一格 */
   onLeft: () => void;
@@ -16,8 +16,10 @@ interface Props {
   onSoftDrop: () => void;
   /** 硬降到触底 */
   onHardDrop: () => void;
-  /** 父容器像素宽度，用于限制拖动范围 */
+  /** 父容器像素宽度，用于限制拖动范围；宽度比例相对宿主而非 vw */
   hostWidth: number;
+  /** 桌面宽屏时在按钮角标对应按键 */
+  desktopUi?: boolean;
   /** 将实测高度回传给父组件以预留布局空间 */
   onHeight?: (h: number) => void;
 }
@@ -30,6 +32,7 @@ export const Controller = ({
   onSoftDrop,
   onHardDrop,
   hostWidth,
+  desktopUi = false,
   onHeight,
 }: Props) => {
   /** 外层包裹元素引用，用于测量宽高 */
@@ -98,11 +101,11 @@ export const Controller = ({
   /** 当前左边距（像素） */
   const left = x ?? 0;
 
-  /** 下行三键与上行旋转共用行高 */
-  const rowH = "clamp(54px, 14.5vw, 84px)";
-  /** 栅格间距 */
-  const gap = "clamp(4px, 1.12vw, 8px)";
-  /** 前三列与行高同为 clamp，呈正方形；第四列瞬降横向占满剩余 */
+  /** 基于宿主宽度计算控件宽度与行高（禁止 vw，避免桌面手机框内溢出） */
+  const safeHost = Math.max(120, hostWidth);
+  const ctrlWidth = Math.min(safeHost * 0.7, 460, safeHost - 8);
+  const rowPx = Math.round(Math.min(84, Math.max(46, safeHost * 0.195)));
+  const gapPx = Math.round(Math.min(8, Math.max(3, safeHost * 0.024)));
 
   return (
     <div
@@ -110,28 +113,25 @@ export const Controller = ({
       className="absolute top-0 select-none rounded-2xl"
       style={{
         left,
-        width: "min(70vw, 460px)",
-        minWidth: 252,
+        width: ctrlWidth,
         touchAction: "none",
         WebkitUserSelect: "none",
         userSelect: "none",
         background: "hsl(var(--sand) / 0.88)",
         border: "1px solid hsl(var(--stone) / 0.7)",
         boxShadow: "0 10px 30px -10px hsl(var(--deep-sand) / 0.25)",
-        padding: gap,
+        padding: gapPx,
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {/* 相对定位容器：背景提示置于底层，按钮网格置于上层 */}
       <div className="relative w-full min-w-0">
-        {/* 居中背景提示 */}
         <div
           className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-2 text-center leading-snug"
           style={{
-            fontSize: "clamp(14px, 4.2vw, 19px)",
+            fontSize: Math.min(17, Math.max(11, safeHost * 0.042)),
             letterSpacing: "0.1em",
             color: "hsl(var(--foreground) / 0.13)",
           }}
@@ -140,39 +140,58 @@ export const Controller = ({
           ← 左右拖动调整位置 →
         </div>
 
-        {/* 旋转与左移/下落/右移：列宽=行高呈正方形；第四列瞬降占剩余宽度 */}
         <div
           className="relative z-[1] grid min-h-0 w-full min-w-0"
           style={{
-            gridTemplateColumns: `${rowH} ${rowH} ${rowH} minmax(48px, 1fr)`,
-            gridTemplateRows: `${rowH} ${rowH}`,
-            columnGap: gap,
-            rowGap: gap,
+            gridTemplateColumns: `${rowPx}px ${rowPx}px ${rowPx}px minmax(48px, 1fr)`,
+            gridTemplateRows: `${rowPx}px ${rowPx}px`,
+            columnGap: gapPx,
+            rowGap: gapPx,
             alignContent: "stretch",
           }}
         >
-          {/* 第一行占位 */}
           <div className="min-h-0 min-w-0" />
-          <CtrlBtn onPress={onRotate} label="旋转">
+          <CtrlBtn
+            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
+            onPress={onRotate}
+            label="旋转"
+            hint={desktopUi ? "W" : undefined}
+          >
             <RotateCw style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
           <div className="min-h-0 min-w-0" />
           <CtrlBtn
+            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
             onPress={onHardDrop}
             label="瞬降"
+            hint={desktopUi ? "␣" : undefined}
             style={{ gridRow: "1 / span 2", gridColumn: "4", height: "100%" }}
           >
             <ChevronsDown style={{ width: "56%", height: "32%" }} />
           </CtrlBtn>
 
-          {/* 第二行：左移、下落、右移 — 与瞬降列一起铺满宽度 */}
-          <CtrlBtn onPress={onLeft} label="左移">
+          <CtrlBtn
+            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
+            onPress={onLeft}
+            label="左移"
+            hint={desktopUi ? "A" : undefined}
+          >
             <ArrowLeft style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <CtrlBtn onPress={onSoftDrop} label="下落">
+          <CtrlBtn
+            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
+            onPress={onSoftDrop}
+            label="下落"
+            hint={desktopUi ? "S" : undefined}
+          >
             <ArrowDown style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <CtrlBtn onPress={onRight} label="右移">
+          <CtrlBtn
+            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
+            onPress={onRight}
+            label="右移"
+            hint={desktopUi ? "D" : undefined}
+          >
             <ArrowRight style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
         </div>
@@ -181,16 +200,20 @@ export const Controller = ({
   );
 };
 
-/** 铺满栅格单元的半透明按钮 */
+/** 铺满栅格单元的半透明按钮；hint 为桌面键盘角标 */
 const CtrlBtn = ({
   children,
   onPress,
   label,
+  hint,
+  fontPx,
   style,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   label: string;
+  hint?: string;
+  fontPx: number;
   style?: React.CSSProperties;
 }) => (
   <button
@@ -200,7 +223,7 @@ const CtrlBtn = ({
       onPress();
     }}
     aria-label={label}
-    className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-foreground transition-transform active:scale-95"
+    className="relative flex min-h-0 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-foreground transition-transform active:scale-95"
     style={{
       width: "100%",
       height: "100%",
@@ -210,7 +233,17 @@ const CtrlBtn = ({
       ...style,
     }}
   >
+    {hint ? (
+      <span
+        className="pointer-events-none absolute right-1 top-0.5 font-mono text-[9px] font-semibold leading-none text-foreground/55"
+        aria-hidden
+      >
+        {hint}
+      </span>
+    ) : null}
     {children}
-    <span style={{ fontSize: "clamp(10px, 2.6vw, 13px)", lineHeight: 1, opacity: 0.92 }}>{label}</span>
+    <span style={{ fontSize: fontPx }} className="leading-none opacity-92">
+      {label}
+    </span>
   </button>
 );

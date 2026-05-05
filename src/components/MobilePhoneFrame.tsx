@@ -3,6 +3,7 @@
  * 微信内置浏览器用 visualViewport/innerHeight 同步 --app-height，缓解 WebView 与 dvh 不一致。
  */
 import { type ReactNode, useLayoutEffect, useState } from "react";
+import { DESKTOP_PHONE_FRAME_MIN_WIDTH } from "@/lib/viewport-mode";
 
 /** 参照手机逻辑分辨率（约 iPhone 13 竖屏 CSS 像素） */
 const REF_WIDTH = 390;
@@ -15,7 +16,7 @@ function detectWeChat(): boolean {
 
 /** 是否按桌面浏览器的「手机框」模式展示（宽屏即可触发） */
 function detectDesktopPhoneFrame(): boolean {
-  return typeof window !== "undefined" && window.innerWidth >= 768;
+  return typeof window !== "undefined" && window.innerWidth >= DESKTOP_PHONE_FRAME_MIN_WIDTH;
 }
 
 type Props = {
@@ -51,9 +52,12 @@ export function MobilePhoneFrame({ children }: Props) {
     apply();
     window.addEventListener("resize", apply);
     window.visualViewport?.addEventListener("resize", apply);
+    /** 微信 WebView 从缓存恢复时 innerHeight 会变，需重刷 --app-height */
+    window.addEventListener("pageshow", apply);
     return () => {
       window.removeEventListener("resize", apply);
       window.visualViewport?.removeEventListener("resize", apply);
+      window.removeEventListener("pageshow", apply);
     };
   }, [weChat, desktopFrame]);
 

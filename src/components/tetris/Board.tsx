@@ -18,16 +18,9 @@ export const TetrisBoard = ({ board, piece, clearingRows }: Props) => {
         }
   }
 
+  /** 外框与边框由 Tetris 棋盘列宿主统一提供，此处仅占满父级像素尺寸 */
   return (
-    <div
-      className="relative rounded-lg bg-[hsl(var(--sand))] p-1 shadow-inner"
-      style={{
-        height: "100%",
-        aspectRatio: `${COLS} / ${ROWS}`,
-        maxWidth: "100%",
-        border: "1px solid hsl(var(--stone))",
-      }}
-    >
+    <div className="relative h-full w-full min-h-0">
       <div
         className="grid h-full w-full"
         style={{

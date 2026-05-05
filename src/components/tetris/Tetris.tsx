@@ -7,6 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Slider } from "@/components/ui/slider";
 import { TetrisBoard } from "./Board";
 import { Controller } from "./Controller";
+import { isDesktopPhoneFrame } from "@/lib/viewport-mode";
 import {
   Board,
   COLS,
@@ -193,18 +194,44 @@ export const Tetris = () => {
     return () => clearInterval(id);
   }, [level, paused, gameOver, started, softDrop]);
 
-  /** 桌面端键盘备用操作 */
+  /** 宽屏桌面：用于按钮旁显示键盘提示 */
+  const [desktopUi, setDesktopUi] = useState(() =>
+    typeof window !== "undefined" ? isDesktopPhoneFrame() : false
+  );
+  useLayoutEffect(() => {
+    const q = () => setDesktopUi(isDesktopPhoneFrame());
+    window.addEventListener("resize", q);
+    return () => window.removeEventListener("resize", q);
+  }, []);
+
+  /** 键盘：移动端保留方向键；桌面额外 WASD、上下键调速度，且上下键不再旋转/软降 */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!started || gameOver) return;
-      if (e.key === "ArrowLeft") move(-1, 0); // 左
-      else if (e.key === "ArrowRight") move(1, 0); // 右
-      else if (e.key === "ArrowDown") softDrop(); // 软降
-      else if (e.key === "ArrowUp") doRotate(); // 转
+      const desk = isDesktopPhoneFrame();
+
+      if (desk && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        e.preventDefault();
+        setLevel((lv) => (e.key === "ArrowUp" ? Math.min(10, lv + 1) : Math.max(1, lv - 1)));
+        return;
+      }
+
+      if (e.key === "ArrowLeft") move(-1, 0);
+      else if (e.key === "ArrowRight") move(1, 0);
+      else if (e.key === "ArrowDown") softDrop();
+      else if (!desk && e.key === "ArrowUp") doRotate();
       else if (e.key === " ") {
-        e.preventDefault(); // 防止页面滚动
-        hardDrop(); // 空格硬降
-      } else if (e.key === "p" || e.key === "P") setPaused((p) => !p); // 暂停切换
+        e.preventDefault();
+        hardDrop();
+      } else if (e.key === "p" || e.key === "P") setPaused((p) => !p);
+
+      if (desk) {
+        const k = e.key.toLowerCase();
+        if (k === "a") move(-1, 0);
+        else if (k === "d") move(1, 0);
+        else if (k === "s") softDrop();
+        else if (k === "w") doRotate();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -233,6 +260,10 @@ export const Tetris = () => {
   /** 玩法区精确布局：三等分留白 G、棋盘列宽、侧栏列宽（像素） */
   const [playLayout, setPlayLayout] = useState({ G: 6, boardW: 120, sidebarW: 96 });
 
+  /** 棋盘格实际像素（按棋盘列宽与高充满算法，避免侧栏撑满而棋盘块视觉偏矮） */
+  const boardHostRef = useRef<HTMLDivElement | null>(null);
+  const [boardPixel, setBoardPixel] = useState({ w: 120, h: 240 });
+
   /** 用玩法区实测宽高重算布局；宽度取自容器 clientWidth（已反映屏幕与安全区内可用宽度） */
   useLayoutEffect(() => {
     const el = playSectionRef.current;
@@ -255,6 +286,24 @@ export const Tetris = () => {
       vv?.removeEventListener("resize", update);
     };
   }, []);
+
+  /** 在棋盘列格内取最大包围盒：bh=min(格高, 格宽×ROWS/COLS)，使沙色区域与侧栏同高时棋盘尽量撑满 */
+  useLayoutEffect(() => {
+    const el = boardHostRef.current;
+    if (!el) return;
+    const fit = () => {
+      const cw = el.clientWidth;
+      const ch = el.clientHeight;
+      if (cw < 8 || ch < 8) return;
+      const bh = Math.min(ch, (cw * ROWS) / COLS);
+      const bw = (bh * COLS) / ROWS;
+      setBoardPixel({ w: bw, h: bh });
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [playLayout.boardW, playLayout.G, playLayout.sidebarW]);
 
   /** 监听宿主宽度变化（含横竖屏） */
   useLayoutEffect(() => {
@@ -296,7 +345,7 @@ export const Tetris = () => {
         {/* 五列栅格：左 gutter | 棋盘 | 中 gutter | 侧栏 | 右 gutter（像素三等分） */}
         <section
           ref={playSectionRef}
-          className="grid min-h-0 flex-1"
+          className="grid min-h-0 flex-1 [&>*]:min-h-0"
           style={{
             gridTemplateColumns: `${playLayout.G}px ${playLayout.boardW}px ${playLayout.G}px ${playLayout.sidebarW}px ${playLayout.G}px`,
             gridTemplateRows: "minmax(0, 1fr)",
@@ -304,15 +353,22 @@ export const Tetris = () => {
         >
           {/* 左侧留白：与中线、右侧留白同为 G */}
           <div aria-hidden className="min-h-0" />
-          {/* 游戏视觉区：minmax(0,1fr) + max-h-full 避免 WebView 下侧栏被撑得高于棋盘列 */}
-          <div className="flex h-full max-h-full min-h-0 min-w-0 items-center justify-center overflow-hidden self-stretch">
+          {/* 游戏视觉区：外层沙色框铺满栅格行高，内层棋盘按格尺寸放大到 bh=min(高,宽×ROWS/COLS)，与侧栏视觉对齐 */}
+          <div className="flex h-full min-h-0 min-w-0 self-stretch overflow-hidden">
             <div
-              style={{
-                width: playLayout.boardW,
-                height: (playLayout.boardW * ROWS) / COLS,
-              }}
+              ref={boardHostRef}
+              className="flex h-full min-h-0 w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-[hsl(var(--stone))] bg-[hsl(var(--sand))] p-1 shadow-inner"
             >
-              <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
+              <div
+                style={{
+                  width: boardPixel.w,
+                  height: boardPixel.h,
+                  maxWidth: "100%",
+                  maxHeight: "100%",
+                }}
+              >
+                <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
+              </div>
             </div>
           </div>
           {/* 棋盘与信息栏之间留白：亦为 G */}
@@ -351,8 +407,16 @@ export const Tetris = () => {
                 flexBasis: 0,
               }}
             >
-              <div style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }} className="text-foreground/65">
+              <div
+                style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }}
+                className="flex items-center gap-1 text-foreground/65"
+              >
                 速度
+                {desktopUi && (
+                  <span className="font-mono text-[9px] opacity-70" aria-hidden>
+                    ↑↓
+                  </span>
+                )}
               </div>
               {/* 勿加 w-full：否则横向铺满后滑轨会贴左；收窄宽度后由外层 items-center 水平居中（与 cc11cdc 一致） */}
               <div className="flex min-h-0 flex-1 items-stretch justify-center">
@@ -385,7 +449,14 @@ export const Tetris = () => {
               }}
             >
               {paused ? <Play size={13} /> : <Pause size={13} />}
-              <span>{paused ? "继续" : "暂停"}</span>
+              <span>
+                {paused ? "继续" : "暂停"}
+                {desktopUi && (
+                  <span className="ml-1 font-mono text-[10px] opacity-75" aria-hidden>
+                    P
+                  </span>
+                )}
+              </span>
             </button>
           </aside>
           {/* 右侧与屏幕边缘的等宽留白 */}
@@ -406,6 +477,7 @@ export const Tetris = () => {
               onSoftDrop={softDrop}
               onHardDrop={hardDrop}
               hostWidth={hostWidth}
+              desktopUi={desktopUi}
               onHeight={(h) => setControllerHeight((prev) => (Math.abs(prev - h) > 1 ? h : prev))}
             />
           )}
