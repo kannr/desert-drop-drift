@@ -441,15 +441,20 @@ export const Tetris = () => {
         </div>
       )}
 
-      {/* 结束遮罩与重新开始 */}
+      {/* 结束遮罩：弹窗约在竖屏下方 1/4 区域，便于拇指够到重新开始 */}
       {gameOver && (
         <div
-          className="absolute inset-0 z-50 flex items-center justify-center"
+          className="absolute inset-0 z-50"
           style={{ background: "hsl(var(--deep-sand) / 0.4)" }}
         >
           <div
-            className="rounded-2xl px-8 py-6 text-center shadow-xl"
-            style={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--stone))" }}
+            className="absolute left-1/2 z-[51] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl px-8 py-6 text-center shadow-xl"
+            style={{
+              /* 锚点为竖直方向约 81%：配合 -translate-y-1/2，整体落在屏幕下 1/4～下 1/3，兼顾安全区 */
+              top: "calc(81% - env(safe-area-inset-bottom) * 0.35)",
+              background: "hsl(var(--background))",
+              border: "1px solid hsl(var(--stone))",
+            }}
           >
             <p className="mb-1 text-xl tracking-[0.3em] text-foreground">游戏结束</p>
             <p className="mb-4 text-xs text-foreground/60">最终得分 {score}</p>
