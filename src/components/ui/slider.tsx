@@ -14,7 +14,7 @@ const Slider = React.forwardRef<
       orientation={orientation}
       className={cn(
         "relative flex touch-none select-none items-center",
-        isVertical ? "h-full flex-col justify-center" : "w-full",
+        isVertical ? "h-full flex-col items-center justify-center" : "w-full",
         className
       )}
       {...props}
