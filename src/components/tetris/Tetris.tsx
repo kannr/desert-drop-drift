@@ -271,13 +271,13 @@ export const Tetris = () => {
     };
   }, [started]);
 
-  /** 根节点：整屏视口，沙漠背景色 */
+  /** 根节点：填满外层 MobilePhoneFrame（桌面为固定逻辑尺寸，勿再用 100vw/100dvh 撑破手机框） */
   return (
     <main
-      className="relative overflow-hidden"
+      className="relative min-h-0 w-full overflow-hidden"
       style={{
-        width: "100vw",
-        height: "100dvh",
+        width: "100%",
+        height: "100%",
         background: "hsl(var(--background))",
       }}
     >
@@ -299,12 +299,13 @@ export const Tetris = () => {
           className="grid min-h-0 flex-1"
           style={{
             gridTemplateColumns: `${playLayout.G}px ${playLayout.boardW}px ${playLayout.G}px ${playLayout.sidebarW}px ${playLayout.G}px`,
+            gridTemplateRows: "minmax(0, 1fr)",
           }}
         >
           {/* 左侧留白：与中线、右侧留白同为 G */}
           <div aria-hidden className="min-h-0" />
-          {/* 游戏视觉区：与侧栏同高（栅格拉伸），棋盘按比例居中 */}
-          <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden self-stretch">
+          {/* 游戏视觉区：minmax(0,1fr) + max-h-full 避免 WebView 下侧栏被撑得高于棋盘列 */}
+          <div className="flex h-full max-h-full min-h-0 min-w-0 items-center justify-center overflow-hidden self-stretch">
             <div
               style={{
                 width: playLayout.boardW,
@@ -317,7 +318,7 @@ export const Tetris = () => {
           {/* 棋盘与信息栏之间留白：亦为 G */}
           <div aria-hidden className="min-h-0" />
           {/* 信息展示区：七块纵向排列，总高度与左侧游戏视觉区栅格列一致 */}
-          <aside className="flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden" style={{ gap: 6 }}>
+          <aside className="flex h-full max-h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden" style={{ gap: 6 }}>
             {/* 标题：极粗字重、深色主色 */}
             <h1
               className="whitespace-nowrap text-center leading-none"
@@ -413,7 +414,7 @@ export const Tetris = () => {
 
       {/* 启动页：全屏背景与开始按钮 */}
       {!started && (
-        <div className="fixed inset-0 z-50" style={{ width: "100vw", height: "100dvh" }}>
+        <div className="absolute inset-0 z-50 h-full w-full">
           {/* 启动页全屏背景图 */}
           <img
             src={tetrisBg}
