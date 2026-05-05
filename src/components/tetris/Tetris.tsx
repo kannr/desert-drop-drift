@@ -353,7 +353,8 @@ export const Tetris = () => {
               <div style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }} className="text-foreground/65">
                 速度
               </div>
-              <div className="flex min-h-0 flex-1 w-full items-stretch">
+              {/* 勿加 w-full：否则横向铺满后滑轨会贴左；收窄宽度后由外层 items-center 水平居中（与 cc11cdc 一致） */}
+              <div className="flex min-h-0 flex-1 items-stretch justify-center">
                 <Slider
                   orientation="vertical"
                   min={1}
