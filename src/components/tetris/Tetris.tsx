@@ -316,8 +316,8 @@ export const Tetris = () => {
           </div>
           {/* 棋盘与信息栏之间留白：亦为 G */}
           <div aria-hidden className="min-h-0" />
-          {/* 信息展示区：与棋盘列等高 */}
-          <aside className="flex min-h-0 min-w-0 flex-col self-stretch overflow-hidden" style={{ gap: 6 }}>
+          {/* 信息展示区：七块纵向排列，总高度与左侧游戏视觉区栅格列一致 */}
+          <aside className="flex h-full min-h-0 min-w-0 flex-col self-stretch overflow-hidden" style={{ gap: 6 }}>
             {/* 标题：极粗字重、深色主色 */}
             <h1
               className="whitespace-nowrap text-center leading-none"
@@ -339,19 +339,18 @@ export const Tetris = () => {
             <Stat label="行数" value={lines} />
             <Stat label="等级" value={level} />
 
-            {/* 垂直速度滑轨：正方形预览占位后，再用 maxHeight 压低滑轨高度 */}
+            {/* 垂直速度滑轨：仅占剩余纵向空间（预览改为正方形变高后自动变矮），保持原有卡片比例不设 maxHeight */}
             <div
               className="flex min-h-0 flex-1 flex-col items-center rounded-lg"
               style={{
                 background: "hsl(var(--stone) / 0.36)",
                 border: "1px solid hsl(var(--stone) / 0.55)",
-                padding: "2px 3px",
-                gap: 2,
+                padding: "6px 4px",
+                gap: 4,
                 flexBasis: 0,
-                maxHeight: "clamp(44px, 11vh, 72px)",
               }}
             >
-              <div style={{ fontSize: "clamp(8px, 2vw, 10px)" }} className="leading-none text-foreground/65">
+              <div style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }} className="text-foreground/65">
                 速度
               </div>
               <div className="flex min-h-0 flex-1 w-full items-stretch">
@@ -365,8 +364,7 @@ export const Tetris = () => {
                   className="h-full"
                 />
               </div>
-              {/* 当前档位数字 */}
-              <div style={{ fontSize: "clamp(9px, 2.3vw, 11px)" }} className="leading-none text-foreground/80">
+              <div style={{ fontSize: "clamp(10px, 2.6vw, 12px)" }} className="text-foreground/80">
                 {level}
               </div>
             </div>
@@ -469,9 +467,9 @@ export const Tetris = () => {
   );
 };
 
-/** 侧栏「下一个」：外框固定为正方形；内层按可用空间计算单元格，使任意外形预览居中 */
+/** 侧栏「下一个」：外框与 Stat 同宽，整体为正方形；内层迷你格居中 */
 const NextPiecePreview = ({ piece }: { piece: Piece }) => {
-  /** 装下迷你网格的方形内膛，用于测量宽高 */
+  /** 方形内膛（扣除标题条）用于测量 */
   const innerRef = useRef<HTMLDivElement | null>(null);
   /** 单个迷你格边长（像素） */
   const [cellPx, setCellPx] = useState(7);
@@ -480,7 +478,7 @@ const NextPiecePreview = ({ piece }: { piece: Piece }) => {
   const cols = shape[0]?.length ?? 0;
   const gapPx = 2;
 
-  /** 随方块形状与容器方形内膛变化，重算单元格大小使整块预览不溢出 */
+  /** 随容器方形内膛变化重算单元格，保证方块矩阵不溢出 */
   useLayoutEffect(() => {
     const el = innerRef.current;
     if (!el) return;
@@ -500,14 +498,14 @@ const NextPiecePreview = ({ piece }: { piece: Piece }) => {
 
   return (
     <div
-      className="mx-auto flex aspect-square w-full max-w-[min(100%,82px)] shrink-0 flex-col overflow-hidden rounded-lg"
+      className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg aspect-square"
       style={{
         background: "hsl(var(--stone) / 0.32)",
         border: "1px solid hsl(var(--stone) / 0.5)",
       }}
     >
       <span
-        style={{ fontSize: "clamp(7px, 1.9vw, 9px)" }}
+        style={{ fontSize: "clamp(8px, 2.1vw, 10px)" }}
         className="shrink-0 py-0.5 text-center leading-none text-foreground/55"
       >
         下一个
