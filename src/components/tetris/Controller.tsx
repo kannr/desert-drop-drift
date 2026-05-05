@@ -98,12 +98,11 @@ export const Controller = ({
   /** 当前左边距（像素） */
   const left = x ?? 0;
 
-  /** 主按钮边长：棋盘区略缩后操作区可更大，旋转/三向键更协调 */
-  const btn = "clamp(56px, 15vw, 86px)";
+  /** 下行三键与上行旋转共用行高 */
+  const rowH = "clamp(54px, 14.5vw, 84px)";
   /** 栅格间距 */
   const gap = "clamp(4px, 1.12vw, 8px)";
-  /** 瞬降列：固定较窄轨道，不抢 1fr，整体更偏左四键 */
-  const hardCol = "clamp(44px, 9.5vw, 56px)";
+  /** 左移/下落/右移三等分列；瞬降列极大 flex 权重吃掉剩余宽度 */
 
   return (
     <div
@@ -127,8 +126,8 @@ export const Controller = ({
       onPointerCancel={onPointerUp}
     >
       {/* 相对定位容器：背景提示置于底层，按钮网格置于上层 */}
-      <div className="relative">
-        {/* 居中背景提示：保留左右箭头并加入「左右」二字，字体略大以便透过半透明按钮阅读 */}
+      <div className="relative w-full min-w-0">
+        {/* 居中背景提示 */}
         <div
           className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-2 text-center leading-snug"
           style={{
@@ -141,42 +140,39 @@ export const Controller = ({
           ← 左右拖动调整位置 →
         </div>
 
-        {/* 按钮区：左区旋转+三键，右区瞬降占两行高度 */}
+        {/* 满宽容器网格：底部左移/下落/右移与瞬降四列总宽度撑满内边距内侧 */}
         <div
-          className="relative z-[1]"
+          className="relative z-[1] grid min-h-0 w-full min-w-0"
           style={{
-            display: "grid",
-            gridTemplateColumns: `${btn} ${btn} ${btn} ${hardCol}`,
-            gridTemplateRows: `${btn} ${btn}`,
+            gridTemplateColumns: "minmax(48px, 1fr) minmax(48px, 1fr) minmax(48px, 1fr) minmax(52px, 100fr)",
+            gridTemplateRows: `${rowH} ${rowH}`,
             columnGap: gap,
             rowGap: gap,
-            justifyContent: "center",
-            alignContent: "center",
+            alignContent: "stretch",
           }}
         >
-          {/* 第一行左空、旋转、右空；第四列为瞬降跨两行 */}
-          <div />
-          <CtrlBtn onPress={onRotate} label="旋转" size={btn}>
+          {/* 第一行占位 */}
+          <div className="min-h-0 min-w-0" />
+          <CtrlBtn onPress={onRotate} label="旋转">
             <RotateCw style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <div />
+          <div className="min-h-0 min-w-0" />
           <CtrlBtn
             onPress={onHardDrop}
             label="瞬降"
-            size={btn}
-            style={{ gridRow: "1 / span 2", gridColumn: "4", height: "auto", width: "100%" }}
+            style={{ gridRow: "1 / span 2", gridColumn: "4", height: "100%" }}
           >
             <ChevronsDown style={{ width: "56%", height: "32%" }} />
           </CtrlBtn>
 
-          {/* 第二行：左移、下落、右移 */}
-          <CtrlBtn onPress={onLeft} label="左移" size={btn}>
+          {/* 第二行：左移、下落、右移 — 与瞬降列一起铺满宽度 */}
+          <CtrlBtn onPress={onLeft} label="左移">
             <ArrowLeft style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <CtrlBtn onPress={onSoftDrop} label="下落" size={btn}>
+          <CtrlBtn onPress={onSoftDrop} label="下落">
             <ArrowDown style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <CtrlBtn onPress={onRight} label="右移" size={btn}>
+          <CtrlBtn onPress={onRight} label="右移">
             <ArrowRight style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
         </div>
@@ -185,18 +181,16 @@ export const Controller = ({
   );
 };
 
-/** 半透明圆形角按钮，阻止事件冒泡以免触发拖动 */
+/** 铺满栅格单元的半透明按钮 */
 const CtrlBtn = ({
   children,
   onPress,
   label,
-  size,
   style,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   label: string;
-  size: string;
   style?: React.CSSProperties;
 }) => (
   <button
@@ -206,10 +200,10 @@ const CtrlBtn = ({
       onPress();
     }}
     aria-label={label}
-    className="flex flex-col items-center justify-center gap-0.5 rounded-xl text-foreground transition-transform active:scale-95"
+    className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-foreground transition-transform active:scale-95"
     style={{
-      width: size,
-      height: size,
+      width: "100%",
+      height: "100%",
       background: "hsl(var(--stone) / 0.38)",
       border: "1px solid hsl(var(--dust) / 0.35)",
       touchAction: "manipulation",

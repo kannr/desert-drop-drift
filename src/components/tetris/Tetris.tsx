@@ -9,7 +9,9 @@ import { TetrisBoard } from "./Board";
 import { Controller } from "./Controller";
 import {
   Board,
+  COLS,
   Piece,
+  ROWS,
   clearLines,
   collides,
   dropInterval,
@@ -18,6 +20,69 @@ import {
   randomPiece,
   rotate,
 } from "./engine";
+
+/** 三边留白的最小像素，低于此则压缩棋盘或侧栏 */
+const PLAY_GAP_MIN = 4;
+/** 信息栏目标宽度占玩法内容宽的比例（用于初值，最终以公式收紧） */
+const SIDEBAR_FRAC = 0.246;
+/** 信息栏宽度像素上下限 */
+const SIDEBAR_W_MIN = 84;
+const SIDEBAR_W_MAX = 132;
+
+/**
+ * 根据玩法区「内容宽度」与「行高」精确计算三等分留白与棋盘列宽、侧栏列宽。
+ * 满足：G + boardW + G + sidebarW + G = W，且 boardW ≤ H×(COLS/ROWS)。
+ */
+function computePlayLayout(contentWidth: number, rowHeight: number) {
+  const W = contentWidth;
+  const H = rowHeight;
+  const boardWCap = H * (COLS / ROWS);
+  const fallback = { G: 6, boardW: Math.min(120, Math.floor(boardWCap)), sidebarW: 96 };
+  if (W < 48 || H < 48) return fallback;
+
+  let sidebarW = Math.min(SIDEBAR_W_MAX, Math.max(SIDEBAR_W_MIN, Math.round(W * SIDEBAR_FRAC)));
+  /** 在不超过高度上限前提下，尽量留出三倍最小留白 */
+  let boardW = Math.min(boardWCap, W - sidebarW - 3 * PLAY_GAP_MIN);
+  if (boardW < 32) return fallback;
+
+  let G = (W - boardW - sidebarW) / 3;
+
+  /** 留白不足时：收缩侧栏与棋盘，使三等分仍成立 */
+  if (G < PLAY_GAP_MIN) {
+    sidebarW = Math.max(72, W - Math.floor(boardWCap) - 3 * PLAY_GAP_MIN);
+    boardW = Math.min(boardWCap, W - sidebarW - 3 * PLAY_GAP_MIN);
+    G = (W - boardW - sidebarW) / 3;
+    if (G < PLAY_GAP_MIN) {
+      G = PLAY_GAP_MIN;
+      boardW = Math.min(boardWCap, W - sidebarW - 3 * G);
+      sidebarW = Math.max(72, W - boardW - 3 * G);
+      boardW = Math.min(boardWCap, W - sidebarW - 3 * G);
+      G = (W - boardW - sidebarW) / 3;
+    }
+  }
+
+  /** 高度上限约束 */
+  if (boardW > boardWCap) boardW = boardWCap;
+
+  /** 整数列宽后重算严格三等分留白（允许亚像素 G） */
+  let bw = Math.floor(boardW);
+  let sw = Math.floor(sidebarW);
+  G = (W - bw - sw) / 3;
+  while (G < PLAY_GAP_MIN && bw > 36) {
+    bw -= 1;
+    G = (W - bw - sw) / 3;
+  }
+  while (G < PLAY_GAP_MIN && sw > 72) {
+    sw -= 1;
+    G = (W - bw - sw) / 3;
+  }
+
+  return {
+    G: Math.max(PLAY_GAP_MIN, G),
+    boardW: bw,
+    sidebarW: Math.max(72, sw),
+  };
+}
 
 /** 导出游戏主界面组件 */
 export const Tetris = () => {
@@ -165,34 +230,31 @@ export const Tetris = () => {
   const [hostWidth, setHostWidth] = useState(0);
   /** 控制器实测高度，避免裁切或留白 */
   const [controllerHeight, setControllerHeight] = useState(220);
-  /** 左、中、右三处相等的水平留白（像素），由容器宽度动态算出 */
-  const [gameGutterPx, setGameGutterPx] = useState(6);
-  /** 右侧信息栏列宽（像素），随屏幕变宽略增，释放棋盘略缩后的横向空间 */
-  const [sidebarColPx, setSidebarColPx] = useState(96);
+  /** 玩法区精确布局：三等分留白 G、棋盘列宽、侧栏列宽（像素） */
+  const [playLayout, setPlayLayout] = useState({ G: 6, boardW: 120, sidebarW: 96 });
 
-  /** 根据玩法区实测宽度更新 gutter 与侧栏宽度，保证三边留白数值一致 */
+  /** 用玩法区实测宽高重算布局；宽度取自容器 clientWidth（已反映屏幕与安全区内可用宽度） */
   useLayoutEffect(() => {
     const el = playSectionRef.current;
     if (!el) return;
     const update = () => {
-      const w = el.clientWidth; // 已扣除父级水平 padding 的内容宽
-      if (w <= 0) return;
-      // 留白约为内容宽的 2.1%～2.4%，并限制在 5～12px，避免右侧视觉上过窄
-      const g = Math.min(12, Math.max(5, Math.round(w * 0.023)));
-      setGameGutterPx(g);
-      // 侧栏略加宽，便于分数区等展示；随宽度单调限定上下界
-      const sb = Math.min(124, Math.max(86, Math.round(w * 0.252)));
-      setSidebarColPx(sb);
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      setPlayLayout(computePlayLayout(w, h));
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     window.addEventListener("orientationchange", update);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", update);
     return () => {
       ro.disconnect();
       window.removeEventListener("orientationchange", update);
+      vv?.removeEventListener("resize", update);
     };
-  }, []); // 挂载后即测量，与是否已开始游戏无关
+  }, []);
 
   /** 监听宿主宽度变化（含横竖屏） */
   useLayoutEffect(() => {
@@ -236,21 +298,26 @@ export const Tetris = () => {
           ref={playSectionRef}
           className="grid min-h-0 flex-1"
           style={{
-            gridTemplateColumns: `${gameGutterPx}px minmax(0, 1fr) ${gameGutterPx}px ${sidebarColPx}px ${gameGutterPx}px`,
+            gridTemplateColumns: `${playLayout.G}px ${playLayout.boardW}px ${playLayout.G}px ${playLayout.sidebarW}px ${playLayout.G}px`,
           }}
         >
-          {/* 左侧与屏幕边缘之间的留白列（像素与另两处相等） */}
+          {/* 左侧留白：与中线、右侧留白同为 G */}
           <div aria-hidden className="min-h-0" />
-          {/* 中间游戏视觉区：高度略缩，宽度随纵横比略减，腾出横向给侧栏与底部大按钮 */}
-          <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden">
-            <div className="flex h-[96%] max-h-full min-h-0 w-full items-center justify-center">
+          {/* 游戏视觉区：与侧栏同高（栅格拉伸），棋盘按比例居中 */}
+          <div className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden self-stretch">
+            <div
+              style={{
+                width: playLayout.boardW,
+                height: (playLayout.boardW * ROWS) / COLS,
+              }}
+            >
               <TetrisBoard board={board} piece={piece} clearingRows={clearing} />
             </div>
           </div>
-          {/* 棋盘与信息栏之间的等宽留白 */}
+          {/* 棋盘与信息栏之间留白：亦为 G */}
           <div aria-hidden className="min-h-0" />
-          {/* 右侧信息栏：六块纵向排列；限制最小宽 0 防止栅格溢出 */}
-          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden" style={{ gap: 6 }}>
+          {/* 信息展示区：与棋盘列等高 */}
+          <aside className="flex min-h-0 min-w-0 flex-col self-stretch overflow-hidden" style={{ gap: 6 }}>
             {/* 标题单行不换行 */}
             <h1
               className="whitespace-nowrap text-center font-medium leading-none text-foreground"
