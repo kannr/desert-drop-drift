@@ -101,11 +101,12 @@ export const Controller = ({
   /** 当前左边距（像素） */
   const left = x ?? 0;
 
-  /** 基于宿主宽度计算控件宽度与行高（禁止 vw，避免桌面手机框内溢出） */
+  /** 控制器总宽相对宿主（避免误用整屏 vw）；格子尺寸用 cqw 相对操作条宽度，等价于手机全宽时的 vw，PC 手机框内比例正确 */
   const safeHost = Math.max(120, hostWidth);
   const ctrlWidth = Math.min(safeHost * 0.7, 460, safeHost - 8);
-  const rowPx = Math.round(Math.min(84, Math.max(46, safeHost * 0.195)));
-  const gapPx = Math.round(Math.min(8, Math.max(3, safeHost * 0.024)));
+  /** 原先用 14.5vw / 1.12vw；改为 cqw 使缩放参照操作区宽度而非浏览器视口 */
+  const rowH = "clamp(54px, 14.5cqw, 84px)";
+  const gap = "clamp(4px, 1.12cqw, 8px)";
 
   return (
     <div
@@ -120,18 +121,18 @@ export const Controller = ({
         background: "hsl(var(--sand) / 0.88)",
         border: "1px solid hsl(var(--stone) / 0.7)",
         boxShadow: "0 10px 30px -10px hsl(var(--deep-sand) / 0.25)",
-        padding: gapPx,
+        padding: gap,
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      <div className="relative w-full min-w-0">
+      <div className="relative w-full min-w-0 [container-type:inline-size]">
         <div
           className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-2 text-center leading-snug"
           style={{
-            fontSize: Math.min(17, Math.max(11, safeHost * 0.042)),
+            fontSize: "clamp(14px, 4.2cqw, 19px)",
             letterSpacing: "0.1em",
             color: "hsl(var(--foreground) / 0.13)",
           }}
@@ -143,25 +144,19 @@ export const Controller = ({
         <div
           className="relative z-[1] grid min-h-0 w-full min-w-0"
           style={{
-            gridTemplateColumns: `${rowPx}px ${rowPx}px ${rowPx}px minmax(48px, 1fr)`,
-            gridTemplateRows: `${rowPx}px ${rowPx}px`,
-            columnGap: gapPx,
-            rowGap: gapPx,
+            gridTemplateColumns: `${rowH} ${rowH} ${rowH} minmax(48px, 1fr)`,
+            gridTemplateRows: `${rowH} ${rowH}`,
+            columnGap: gap,
+            rowGap: gap,
             alignContent: "stretch",
           }}
         >
           <div className="min-h-0 min-w-0" />
-          <CtrlBtn
-            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
-            onPress={onRotate}
-            label="旋转"
-            hint={desktopUi ? "W" : undefined}
-          >
+          <CtrlBtn onPress={onRotate} label="旋转" hint={desktopUi ? "W" : undefined}>
             <RotateCw style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
           <div className="min-h-0 min-w-0" />
           <CtrlBtn
-            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
             onPress={onHardDrop}
             label="瞬降"
             hint={desktopUi ? "␣" : undefined}
@@ -170,28 +165,13 @@ export const Controller = ({
             <ChevronsDown style={{ width: "56%", height: "32%" }} />
           </CtrlBtn>
 
-          <CtrlBtn
-            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
-            onPress={onLeft}
-            label="左移"
-            hint={desktopUi ? "A" : undefined}
-          >
+          <CtrlBtn onPress={onLeft} label="左移" hint={desktopUi ? "A" : undefined}>
             <ArrowLeft style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <CtrlBtn
-            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
-            onPress={onSoftDrop}
-            label="下落"
-            hint={desktopUi ? "S" : undefined}
-          >
+          <CtrlBtn onPress={onSoftDrop} label="下落" hint={desktopUi ? "S" : undefined}>
             <ArrowDown style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
-          <CtrlBtn
-            fontPx={Math.min(13, Math.max(10, Math.round(rowPx * 0.21)))}
-            onPress={onRight}
-            label="右移"
-            hint={desktopUi ? "D" : undefined}
-          >
+          <CtrlBtn onPress={onRight} label="右移" hint={desktopUi ? "D" : undefined}>
             <ArrowRight style={{ width: "56%", height: "56%" }} />
           </CtrlBtn>
         </div>
@@ -206,14 +186,12 @@ const CtrlBtn = ({
   onPress,
   label,
   hint,
-  fontPx,
   style,
 }: {
   children: React.ReactNode;
   onPress: () => void;
   label: string;
   hint?: string;
-  fontPx: number;
   style?: React.CSSProperties;
 }) => (
   <button
@@ -242,7 +220,7 @@ const CtrlBtn = ({
       </span>
     ) : null}
     {children}
-    <span style={{ fontSize: fontPx }} className="leading-none opacity-92">
+    <span style={{ fontSize: "clamp(10px, 2.6cqw, 13px)", lineHeight: 1 }} className="opacity-92">
       {label}
     </span>
   </button>
