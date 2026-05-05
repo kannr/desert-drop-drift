@@ -339,19 +339,22 @@ export const Tetris = () => {
             <Stat label="行数" value={lines} />
             <Stat label="等级" value={level} />
 
-            {/* 垂直速度滑轨：预览占用纵向空间后由 flex-1 自动变矮 */}
+            {/* 垂直速度滑轨：正方形预览占位后，再用 maxHeight 压低滑轨高度 */}
             <div
               className="flex min-h-0 flex-1 flex-col items-center rounded-lg"
               style={{
                 background: "hsl(var(--stone) / 0.36)",
                 border: "1px solid hsl(var(--stone) / 0.55)",
-                padding: "4px 4px",
-                gap: 3,
+                padding: "2px 3px",
+                gap: 2,
                 flexBasis: 0,
+                maxHeight: "clamp(44px, 11vh, 72px)",
               }}
             >
-              <div style={{ fontSize: "clamp(9px, 2.4vw, 11px)" }} className="text-foreground/65">速度</div>
-              <div className="flex min-h-0 flex-1 items-stretch">
+              <div style={{ fontSize: "clamp(8px, 2vw, 10px)" }} className="leading-none text-foreground/65">
+                速度
+              </div>
+              <div className="flex min-h-0 flex-1 w-full items-stretch">
                 <Slider
                   orientation="vertical"
                   min={1}
@@ -363,7 +366,9 @@ export const Tetris = () => {
                 />
               </div>
               {/* 当前档位数字 */}
-              <div style={{ fontSize: "clamp(10px, 2.6vw, 12px)" }} className="text-foreground/80">{level}</div>
+              <div style={{ fontSize: "clamp(9px, 2.3vw, 11px)" }} className="leading-none text-foreground/80">
+                {level}
+              </div>
             </div>
 
             {/* 暂停键靠下便于拇指点击 */}
@@ -464,43 +469,73 @@ export const Tetris = () => {
   );
 };
 
-/** 侧栏「下一个」迷你棋盘：按方块矩阵着色，高度固定以免挤压其它区块过多 */
+/** 侧栏「下一个」：外框固定为正方形；内层按可用空间计算单元格，使任意外形预览居中 */
 const NextPiecePreview = ({ piece }: { piece: Piece }) => {
-  const rows = piece.shape.length;
-  const cols = piece.shape[0]?.length ?? 0;
+  /** 装下迷你网格的方形内膛，用于测量宽高 */
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  /** 单个迷你格边长（像素） */
+  const [cellPx, setCellPx] = useState(7);
+  const shape = piece.shape;
+  const rows = shape.length;
+  const cols = shape[0]?.length ?? 0;
+  const gapPx = 2;
+
+  /** 随方块形状与容器方形内膛变化，重算单元格大小使整块预览不溢出 */
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const fit = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      if (w < 6 || h < 6) return;
+      const cw = Math.floor((w - gapPx * Math.max(0, cols - 1)) / cols);
+      const ch = Math.floor((h - gapPx * Math.max(0, rows - 1)) / rows);
+      setCellPx(Math.max(4, Math.min(cw, ch)));
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cols, rows, piece.key]);
+
   return (
     <div
-      className="flex shrink-0 flex-col items-center justify-center rounded-lg py-1"
+      className="mx-auto flex aspect-square w-full max-w-[min(100%,82px)] shrink-0 flex-col overflow-hidden rounded-lg"
       style={{
         background: "hsl(var(--stone) / 0.32)",
         border: "1px solid hsl(var(--stone) / 0.5)",
       }}
     >
-      <span style={{ fontSize: "clamp(8px, 2.1vw, 10px)" }} className="mb-0.5 text-foreground/55">
+      <span
+        style={{ fontSize: "clamp(7px, 1.9vw, 9px)" }}
+        className="shrink-0 py-0.5 text-center leading-none text-foreground/55"
+      >
         下一个
       </span>
       <div
-        className="mx-auto grid w-full max-w-[88px]"
-        style={{
-          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-          aspectRatio: `${cols} / ${rows}`,
-          gap: 2,
-          maxHeight: "clamp(30px, 8vw, 42px)",
-        }}
+        ref={innerRef}
+        className="flex min-h-0 min-w-0 flex-1 items-center justify-center px-1 pb-1"
       >
-        {piece.shape.map((row, ri) =>
-          row.map((cell, ci) => (
-            <div
-              key={`${ri}-${ci}`}
-              className="min-h-0 min-w-0"
-              style={{
-                borderRadius: 2,
-                background: cell ? `hsl(${piece.color})` : "transparent",
-              }}
-            />
-          ))
-        )}
+        <div
+          className="grid shrink-0"
+          style={{
+            gridTemplateColumns: `repeat(${cols}, ${cellPx}px)`,
+            gridTemplateRows: `repeat(${rows}, ${cellPx}px)`,
+            gap: gapPx,
+          }}
+        >
+          {shape.map((row, ri) =>
+            row.map((cell, ci) => (
+              <div
+                key={`${ri}-${ci}`}
+                style={{
+                  borderRadius: 2,
+                  background: cell ? `hsl(${piece.color})` : "transparent",
+                }}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );
